@@ -7,8 +7,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @homeroom/service dev & pnpm --filter @homeroom/web dev & wait",
-    "build": "pnpm -r build",
+    "dev": "vite",
+    "build": "vite build",
+    "build:dev": "vite build",
     "lint": "eslint .",
     "format": "prettier --write .",
     "check-types": "pnpm -r check-types",
