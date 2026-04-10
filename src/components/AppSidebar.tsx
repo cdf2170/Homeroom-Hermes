@@ -36,7 +36,7 @@ const AppSidebar: React.FC = () => {
               <TooltipTrigger asChild>
                 <NavLink
                   to={to}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                  className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
                     isActive
                       ? 'bg-sidebar-accent text-sidebar-primary'
                       : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
