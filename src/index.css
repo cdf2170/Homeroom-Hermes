@@ -1,0 +1,161 @@
+@import "tailwindcss";
+@config "./tailwind.config.ts";
+@plugin "tailwindcss-animate";
+
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 39 32% 96%;
+    --foreground: 30 10% 15%;
+
+    --card: 37 30% 93%;
+    --card-foreground: 30 10% 15%;
+
+    --popover: 39 32% 96%;
+    --popover-foreground: 30 10% 15%;
+
+    --primary: 25 70% 45%;
+    --primary-foreground: 39 32% 96%;
+
+    --secondary: 150 25% 45%;
+    --secondary-foreground: 39 32% 96%;
+
+    --muted: 35 20% 90%;
+    --muted-foreground: 30 8% 50%;
+
+    --accent: 35 40% 85%;
+    --accent-foreground: 30 10% 15%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 39 32% 96%;
+
+    --border: 35 20% 85%;
+    --input: 35 20% 85%;
+    --ring: 25 70% 45%;
+
+    --radius: 0.75rem;
+
+    /* Homeroom custom tokens */
+    --floor-wood: 30 30% 70%;
+    --floor-carpet: 35 15% 80%;
+    --wall: 35 15% 75%;
+    --furniture-desk: 25 25% 50%;
+    --furniture-chair: 30 20% 45%;
+    --plant-green: 140 35% 45%;
+    --window-blue: 200 40% 75%;
+    --agent-glow: 45 80% 60%;
+    --status-working: 140 50% 45%;
+    --status-break: 200 50% 55%;
+    --status-waiting: 45 80% 55%;
+    --status-idle: 30 15% 60%;
+    --status-sleeping: 260 25% 55%;
+    --status-offline: 0 0% 65%;
+    --status-attention: 0 70% 55%;
+
+    --sidebar-background: 30 20% 20%;
+    --sidebar-foreground: 35 20% 90%;
+    --sidebar-primary: 25 70% 55%;
+    --sidebar-primary-foreground: 39 32% 96%;
+    --sidebar-accent: 30 15% 28%;
+    --sidebar-accent-foreground: 35 20% 90%;
+    --sidebar-border: 30 10% 30%;
+    --sidebar-ring: 25 70% 45%;
+  }
+
+  .dark {
+    --background: 30 15% 10%;
+    --foreground: 35 20% 90%;
+    --card: 30 12% 14%;
+    --card-foreground: 35 20% 90%;
+    --popover: 30 12% 14%;
+    --popover-foreground: 35 20% 90%;
+    --primary: 25 70% 55%;
+    --primary-foreground: 30 15% 10%;
+    --secondary: 150 25% 40%;
+    --secondary-foreground: 35 20% 90%;
+    --muted: 30 10% 20%;
+    --muted-foreground: 30 10% 55%;
+    --accent: 30 15% 22%;
+    --accent-foreground: 35 20% 90%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 35 20% 90%;
+    --border: 30 10% 22%;
+    --input: 30 10% 22%;
+    --ring: 25 70% 55%;
+    --sidebar-background: 30 15% 8%;
+    --sidebar-foreground: 35 20% 85%;
+    --sidebar-primary: 25 70% 55%;
+    --sidebar-primary-foreground: 30 15% 10%;
+    --sidebar-accent: 30 10% 15%;
+    --sidebar-accent-foreground: 35 20% 85%;
+    --sidebar-border: 30 8% 18%;
+    --sidebar-ring: 25 70% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Nunito', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+/* Subtle plant sway animation */
+@keyframes plant-sway {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+
+/* Monitor glow pulse */
+@keyframes monitor-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Agent idle bob */
+@keyframes agent-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+/* Attention pulse */
+@keyframes attention-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--status-attention) / 0.5); }
+  50% { box-shadow: 0 0 0 6px hsl(var(--status-attention) / 0); }
+}
+
+.animate-plant-sway {
+  animation: plant-sway 4s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-monitor-glow {
+  animation: monitor-glow 3s ease-in-out infinite;
+}
+
+.animate-agent-idle {
+  animation: agent-idle 3s ease-in-out infinite;
+}
+
+.animate-attention-pulse {
+  animation: attention-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-plant-sway,
+  .animate-monitor-glow,
+  .animate-agent-idle,
+  .animate-attention-pulse {
+    animation: none;
+  }
+}
