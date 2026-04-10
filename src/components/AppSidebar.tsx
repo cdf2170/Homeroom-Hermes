@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { to: '/agents', icon: Users, label: 'Agents' },
   { to: '/activity', icon: Activity, label: 'Activity' },
   { to: '/trust', icon: ShieldCheck, label: 'Trust Center' },
-  { to: '/templates', icon: LayoutTemplate, label: 'Templates' },
+  
   { to: '/plugins', icon: Plug, label: 'Plugins' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
