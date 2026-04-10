@@ -124,6 +124,7 @@ const ApprovalsPage: React.FC = () => {
       </div>
 
       {/* Request list */}
+      <StateCoverage loading={loading} loadingRows={4}>
       <div className="space-y-3">
         {filtered.map(req => {
           const CatIcon = CATEGORY_ICONS[req.category];
