@@ -31,6 +31,7 @@ export interface MemoryItem {
   id: string;
   content: string;
   category: 'preference' | 'context' | 'fact' | 'note';
+  pinned: boolean;
   createdAt: Date;
 }
 
@@ -43,6 +44,7 @@ export interface RuleItem {
   content: string;
   priority: RulePriority;
   enabled: boolean;
+  order: number;
 }
 
 // === Appearance ===
