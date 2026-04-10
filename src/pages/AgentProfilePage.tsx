@@ -467,10 +467,24 @@ const PersonalitySection = ({ agent }: { agent: Agent }) => {
 // MEMORY
 // ═══════════════════════════════
 
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  preference: Heart,
+  context: Bookmark,
+  fact: Lightbulb,
+  note: StickyNote,
+};
+
 const MemorySection = ({ agent }: { agent: Agent }) => {
   const [newContent, setNewContent] = useState('');
   const [newCategory, setNewCategory] = useState<MemoryItem['category']>('note');
   const items = agent.memoryItems || [];
+
+  // Pinned items float to top
+  const sortedItems = [...items].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
 
   const addItem = () => {
     if (!newContent.trim()) return;
@@ -478,6 +492,7 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
       id: `mem-${Date.now()}`,
       content: newContent.trim(),
       category: newCategory,
+      pinned: false,
       createdAt: new Date(),
     };
     updateAgent(agent.id, { memoryItems: [...items, item] });
@@ -490,6 +505,10 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
     toast.success('Memory removed');
   };
 
+  const togglePin = (itemId: string) => {
+    updateAgent(agent.id, { memoryItems: items.map(i => i.id === itemId ? { ...i, pinned: !i.pinned } : i) });
+  };
+
   const categoryColor: Record<string, string> = {
     preference: 'bg-primary/10 text-primary',
     context: 'bg-secondary/10 text-secondary',
@@ -499,7 +518,7 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Brain} title="Memory" desc="What this agent should remember over time" />
+      <SectionHeader icon={Brain} title="Memory" desc="Memories help this agent remember things between conversations" />
 
       <div className="p-3 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground">
@@ -519,17 +538,21 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
         />
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5">
-            {(['preference', 'context', 'fact', 'note'] as const).map(c => (
-              <button
-                key={c}
-                onClick={() => setNewCategory(c)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-medium capitalize transition-colors ${
-                  newCategory === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                {c}
-              </button>
-            ))}
+            {(['preference', 'context', 'fact', 'note'] as const).map(c => {
+              const CatIcon = CATEGORY_ICONS[c];
+              return (
+                <button
+                  key={c}
+                  onClick={() => setNewCategory(c)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium capitalize transition-colors flex items-center gap-1 ${
+                    newCategory === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  <CatIcon className="w-3 h-3" />
+                  {c}
+                </button>
+              );
+            })}
           </div>
           <Button size="sm" onClick={addItem} disabled={!newContent.trim()} className="text-xs h-7">
             <Plus className="w-3 h-3" /> Add
@@ -539,23 +562,32 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
 
       {/* Memory items */}
       <div className="space-y-2">
-        {items.map(item => (
-          <div key={item.id} className="flex items-start gap-3 p-3 bg-card border border-border rounded-xl group">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-foreground">{item.content}</p>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${categoryColor[item.category]}`}>{item.category}</span>
-                <span className="text-[10px] text-muted-foreground">{timeAgo(item.createdAt)}</span>
+        {sortedItems.map(item => {
+          const CatIcon = CATEGORY_ICONS[item.category] || StickyNote;
+          return (
+            <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border rounded-xl group transition-all ${item.pinned ? 'border-primary/30 bg-primary/5' : 'border-border'}`}>
+              <div className="mt-0.5 shrink-0">
+                <CatIcon className={`w-4 h-4 ${item.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-foreground">{item.content}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${categoryColor[item.category]}`}>{item.category}</span>
+                  <span className="text-[10px] text-muted-foreground">{timeAgo(item.createdAt)}</span>
+                  {item.pinned && <span className="text-[10px] text-primary font-medium flex items-center gap-0.5"><Pin className="w-2.5 h-2.5" /> Pinned</span>}
+                </div>
+              </div>
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => togglePin(item.id)} className={`p-1 rounded transition-colors ${item.pinned ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}>
+                  <Pin className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive p-1">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => removeItem(item.id)}
-              className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
+          );
+        })}
         {items.length === 0 && (
           <div className="text-center py-10 border border-dashed border-border rounded-xl px-6">
             <Brain className="w-8 h-8 mx-auto text-muted-foreground/60 mb-3" />
