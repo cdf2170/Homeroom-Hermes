@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   ArrowRight, ArrowLeft, Shield, ShieldCheck, Key, Eye, EyeOff,
   Check, ExternalLink, Lock, Info, Sparkles, AlertTriangle,
-  HardDrive, CloudOff, CheckCircle2, XCircle,
+  HardDrive, CloudOff, CheckCircle2, XCircle, Loader2, BadgeCheck, Fingerprint,
 } from 'lucide-react';
 import { PROVIDER_INFO, type ProviderInfo } from '@/data/models';
 import { setProviderKey, hasProviderKey, getProviderKey } from '@/store/modelConfigStore';
