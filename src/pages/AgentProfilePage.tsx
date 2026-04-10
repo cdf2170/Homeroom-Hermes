@@ -440,35 +440,107 @@ const AgentQuickActions = ({ agent }: { agent: Agent }) => {
 // INSTRUCTIONS
 // ═══════════════════════════════
 
-const InstructionsSection = ({ agent }: { agent: Agent }) => (
-  <div className="space-y-6">
-    <SectionHeader icon={FileText} title="Instructions" desc="What this agent does, how it should operate, and what good work looks like" />
+const InstructionsSection = ({ agent }: { agent: Agent }) => {
+  const [boundaries, setBoundaries] = useState(agent.environmentNotes || '');
 
-    <div className="bg-card border border-border rounded-xl p-4">
-      <p className="text-xs font-semibold text-muted-foreground mb-2">What this agent does</p>
-      <EditableField label="" value={agent.purpose} onSave={v => updateAgent(agent.id, { purpose: v })} multiline placeholder="Describe the agent's main job in plain language..." />
-    </div>
+  useEffect(() => setBoundaries(agent.environmentNotes || ''), [agent.environmentNotes]);
 
-    <div className="bg-card border border-border rounded-xl p-4">
-      <p className="text-xs font-semibold text-muted-foreground mb-1">Detailed instructions</p>
-      <p className="text-[10px] text-muted-foreground mb-3">Tell this agent how to do its job. Be specific about what you want, the format of outputs, and any special rules.</p>
-      <EditableField
-        label=""
-        value={agent.instructions}
-        onSave={v => updateAgent(agent.id, { instructions: v })}
-        multiline
-        placeholder="e.g. When I ask you to research something, find at least 3 reliable sources. Always include links. Present findings as bullet points with a summary at the top. Ask clarifying questions if the topic is too broad."
-        tall
-      />
-    </div>
+  return (
+    <div className="space-y-0">
+      {/* AGENTS.md document header */}
+      <div className="flex items-center gap-3 p-4 bg-muted/40 border border-border rounded-xl mb-6" style={{ borderLeft: '3px solid hsl(var(--primary))' }}>
+        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <FileText className="w-4 h-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-mono text-sm font-bold text-foreground tracking-tight">AGENTS.md</p>
+          <p className="text-[11px] text-muted-foreground">{agent.name} reads this before every task.</p>
+        </div>
+        <Button variant="ghost" size="sm" className="text-xs h-7 shrink-0 text-muted-foreground">
+          <FileText className="w-3 h-3" /> Open file
+        </Button>
+      </div>
 
-    <div className="p-3 bg-muted/50 rounded-lg">
-      <p className="text-xs text-muted-foreground">
-        <span className="font-semibold">Tip:</span> Write instructions like you're explaining the job to a smart new hire. The more specific you are, the better your agent will perform.
-      </p>
+      {/* Role */}
+      <div className="py-4 border-b border-border">
+        <p className="text-xs font-semibold text-foreground mb-0.5">Role</p>
+        <p className="text-[10px] text-muted-foreground mb-2">What this agent\u2019s job is in one sentence</p>
+        <EditableField label="" value={agent.role} onSave={v => updateAgent(agent.id, { role: v })} placeholder="e.g. Research assistant that finds and summarizes information" />
+      </div>
+
+      {/* How to work */}
+      <div className="py-4 border-b border-border">
+        <p className="text-xs font-semibold text-foreground mb-0.5">How to work</p>
+        <p className="text-[10px] text-muted-foreground mb-2">Instructions the agent follows on every task</p>
+        <EditableField
+          label=""
+          value={agent.instructions}
+          onSave={v => updateAgent(agent.id, { instructions: v })}
+          multiline
+          placeholder="e.g. When I ask you to research something, find at least 3 reliable sources. Always include links. Present findings as bullet points with a summary at the top."
+        />
+      </div>
+
+      {/* Boundaries */}
+      <div className="py-4 border-b border-border">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <AlertTriangle className="w-3 h-3 text-status-waiting" />
+          <p className="text-xs font-semibold text-foreground">Boundaries</p>
+        </div>
+        <p className="text-[10px] text-muted-foreground mb-2">What this agent should never do</p>
+        <EditableField
+          label=""
+          value={agent.environmentNotes || ''}
+          onSave={v => updateAgent(agent.id, { environmentNotes: v })}
+          multiline
+          placeholder="e.g. Never make up sources. Never access private repos without asking."
+        />
+      </div>
+
+      {/* Archetype + Good output */}
+      <div className="grid grid-cols-2 gap-4 py-4 border-b border-border">
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <p className="text-xs font-semibold text-foreground">Archetype</p>
+            <div className="group relative">
+              <Lightbulb className="w-3 h-3 text-muted-foreground cursor-help" />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-popover border border-border rounded-md text-[10px] text-popover-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-10">
+                Shapes how the agent thinks and approaches tasks
+              </div>
+            </div>
+          </div>
+          <Select value={agent.archetype} onValueChange={(v) => updateAgent(agent.id, { archetype: v as any })}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.entries(ARCHETYPE_LABELS) as [string, string][]).map(([key, label]) => (
+                <SelectItem key={key} value={key} className="text-xs">{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-foreground mb-1.5">Good output looks like</p>
+          <EditableField
+            label=""
+            value={agent.audienceNotes || ''}
+            onSave={v => updateAgent(agent.id, { audienceNotes: v })}
+            placeholder="e.g. A bullet summary with sources"
+          />
+        </div>
+      </div>
+
+      {/* Sync banner */}
+      <div className="flex items-center gap-2 mt-4 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">
+        <RefreshCw className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <p className="text-[11px] text-muted-foreground">
+          Changes here update <span className="font-mono font-medium text-foreground">AGENTS.md</span> automatically. The agent sees them on its next run.
+        </p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ═══════════════════════════════
 // PERSONALITY
