@@ -4,6 +4,8 @@ import { useApprovals, resolveApproval } from '@/store/approvalStore';
 import { CATEGORY_LABELS, RISK_LABELS } from '@/types/approval';
 import type { ApprovalRequest, ApprovalCategory } from '@/types/approval';
 import { Button } from '@/components/ui/button';
+import StateCoverage from '@/components/StateCoverage';
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
