@@ -14,6 +14,10 @@ export interface ApprovalRequest {
   createdAt: Date;
   resolvedAt: Date | null;
   resolvedBy: string | null;
+  // Review context
+  context?: string;        // What the agent was doing when it made this request
+  affectedPaths?: string[]; // Files/resources involved
+  reasoning?: string;       // Why the agent thinks it needs this
 }
 
 export const CATEGORY_LABELS: Record<ApprovalCategory, string> = {
