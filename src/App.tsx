@@ -21,9 +21,9 @@ import NotFound from "./pages/NotFound.tsx";
 const queryClient = new QueryClient();
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen flex w-full">
+  <div className="h-screen flex w-full overflow-hidden">
     <AppSidebar />
-    <main className="flex-1 min-h-screen overflow-auto">
+    <main className="flex-1 overflow-auto">
       {children}
     </main>
   </div>
