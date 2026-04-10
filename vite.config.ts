@@ -27,10 +27,10 @@ export default defineConfig(({ mode }) => ({
   },
   optimizeDeps: {
     include: [
-      "react-router-dom",
       "react",
       "react-dom",
       "@tanstack/react-query",
     ],
+    exclude: ["react-router-dom"],
   },
 }));
