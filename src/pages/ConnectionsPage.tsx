@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Separator } from "@/components/ui/separator";
 import {
   Plug, Search, ExternalLink, Monitor, Cloud, Shield, CheckCircle2,
-  Bot, Brain, Calendar, Mail, MessageSquare, Github, FileText,
+  Bot, Brain, Calendar, Mail, MessageSquare, FileText,
   Home as HomeIcon, Globe, Send, Cpu, Key, Sparkles,
 } from "lucide-react";
 
