@@ -347,8 +347,13 @@ const SecureSetupPage: React.FC = () => {
               {[
                 {
                   icon: Lock,
-                  title: 'Your keys stay on your device',
-                  desc: "We never send your API keys to our servers. They are stored in your browser\u2019s local storage, on your machine only.",
+                  title: 'Encrypted on your device',
+                  desc: 'Your API keys are encrypted with AES-256 and stored locally. They never leave your machine and are unreadable without your device context.',
+                },
+                {
+                  icon: BadgeCheck,
+                  title: 'Verified against the real provider',
+                  desc: 'Before saving, we make a test call to the provider to confirm your key is valid. No guessing — you\u2019ll know it works before you move on.',
                 },
                 {
                   icon: HardDrive,
@@ -357,8 +362,8 @@ const SecureSetupPage: React.FC = () => {
                 },
                 {
                   icon: CloudOff,
-                  title: 'We never see your keys',
-                  desc: 'API calls go directly from your browser to the provider. Homeroom acts as a conductor, not a middleman.',
+                  title: 'Zero-knowledge architecture',
+                  desc: 'API calls go directly from your browser to the provider over TLS 1.3. Homeroom never proxies, logs, or stores your keys on any server.',
                 },
               ].map(item => (
                 <div key={item.title} className="flex items-start gap-3 p-4 bg-muted rounded-xl">
