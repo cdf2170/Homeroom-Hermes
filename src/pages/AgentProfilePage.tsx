@@ -172,55 +172,31 @@ const AgentProfilePage: React.FC = () => {
           })}
         </nav>
 
-        {/* Persistent safety summary rail */}
-        <div className="px-3 py-3 border-t border-border space-y-1">
-          <p className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider mb-1.5">At a glance</p>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            {agent.runtimeMode === 'local' ? <Cpu className="w-3 h-3 shrink-0" /> : <Cloud className="w-3 h-3 shrink-0" />}
-            <span>{agent.runtimeMode === 'local' ? 'Local' : agent.runtimeMode === 'cloud' ? 'Cloud' : 'Hybrid'}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            {agent.backgroundEnabled ? <RefreshCw className="w-3 h-3 shrink-0" /> : <Play className="w-3 h-3 shrink-0" />}
-            <span>{agent.backgroundEnabled ? 'Background' : 'Manual'}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <Shield className="w-3 h-3 shrink-0" />
-            <span>{agent.permissions ? (agent.permissions.networkAccess ? 'Internet on' : 'No internet') : 'No guardrails'}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <Zap className="w-3 h-3 shrink-0" />
-            <span className="capitalize">{agent.smartnessLevel}</span>
-          </div>
-          {agent.lastRunAt && (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <Activity className="w-3 h-3 shrink-0" />
-              <span>{timeAgo(agent.lastRunAt)}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="p-3 border-t border-border space-y-1.5">
-          <Button size="sm" className="w-full text-xs h-8" onClick={() => { handleSetState('working'); toast.success(`Running ${agent.name} now`); }}>
+        {/* Action buttons - always visible */}
+        <div className="p-3 border-t border-border space-y-1 shrink-0">
+          <Button size="sm" className="w-full text-xs h-7" onClick={() => { handleSetState('working'); toast.success(`Running ${agent.name} now`); }}>
             <Play className="w-3 h-3" /> Run Now
           </Button>
-          <Button size="sm" variant="outline" className="w-full text-xs h-8" onClick={() => setSection('overview')}>
-            <MessageSquare className="w-3 h-3" /> Message
-          </Button>
-          <Button size="sm" variant="outline" className="w-full text-xs h-8" onClick={() => setSection('schedule')}>
-            <Calendar className="w-3 h-3" /> Schedule
-          </Button>
+          <div className="flex gap-1">
+            <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={() => setSection('overview')}>
+              <MessageSquare className="w-3 h-3" /> Message
+            </Button>
+            <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={() => setSection('schedule')}>
+              <Calendar className="w-3 h-3" /> Schedule
+            </Button>
+          </div>
           {isActive ? (
-            <Button size="sm" variant="outline" className="w-full text-xs h-8" onClick={() => handleSetState('paused')}>
+            <Button size="sm" variant="outline" className="w-full text-xs h-7" onClick={() => handleSetState('paused')}>
               <Pause className="w-3 h-3" /> Pause
             </Button>
           ) : agent.state === 'paused' ? (
-            <Button size="sm" variant="outline" className="w-full text-xs h-8" onClick={() => handleSetState('working')}>
+            <Button size="sm" variant="outline" className="w-full text-xs h-7" onClick={() => handleSetState('working')}>
               <Play className="w-3 h-3" /> Resume
             </Button>
           ) : null}
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost" className="w-full text-xs h-8 text-destructive">
+              <Button size="sm" variant="ghost" className="w-full text-xs h-7 text-destructive">
                 <Trash2 className="w-3 h-3" /> Remove from Office
               </Button>
             </AlertDialogTrigger>
