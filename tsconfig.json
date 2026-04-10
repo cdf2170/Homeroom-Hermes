@@ -1,12 +1,4 @@
 {
   "files": [],
-  "references": [
-    { "path": "packages/schemas" },
-    { "path": "packages/adapter-core" },
-    { "path": "packages/adapter-openclaw" },
-    { "path": "packages/scene" },
-    { "path": "packages/ui" },
-    { "path": "apps/service" },
-    { "path": "apps/web" }
-  ]
+  "references": []
 }
