@@ -346,7 +346,7 @@ const SecureSetupPage: React.FC = () => {
                 },
                 {
                   step: '3',
-                  title: 'It's saved to localStorage',
+                  title: "It\u2019s saved to localStorage",
                   desc: "Your browser\u2019s built-in storage keeps the key on your device. It never leaves your machine and is never included in network requests to Homeroom.",
                   color: 'bg-secondary/10 text-secondary',
                 },
