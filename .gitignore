@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Nested repo clone (artifact from setup)
+Homeroom-OpenClaw/
