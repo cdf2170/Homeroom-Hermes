@@ -464,7 +464,7 @@ const InstructionsSection = ({ agent }: { agent: Agent }) => {
       {/* Role */}
       <div className="py-4 border-b border-border">
         <p className="text-xs font-semibold text-foreground mb-0.5">Role</p>
-        <p className="text-[10px] text-muted-foreground mb-2">What this agent\u2019s job is in one sentence</p>
+        <p className="text-[10px] text-muted-foreground mb-2">What this agent&apos;s job is in one sentence</p>
         <EditableField label="" value={agent.role} onSave={v => updateAgent(agent.id, { role: v })} placeholder="e.g. Research assistant that finds and summarizes information" />
       </div>
 
