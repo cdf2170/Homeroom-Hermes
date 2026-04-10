@@ -61,7 +61,8 @@ const FrontDeskPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {/* Header */}
+      <StateCoverage loading={loading} loadingRows={6}>
+      {/* (StateCoverage wraps all content below) */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display font-bold text-2xl text-foreground">Front Desk</h1>
@@ -170,6 +171,7 @@ const FrontDeskPage: React.FC = () => {
           </Button>
         </div>
       )}
+      </StateCoverage>
     </div>
   );
 };
