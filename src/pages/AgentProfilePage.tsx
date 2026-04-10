@@ -200,18 +200,48 @@ const AgentProfilePage: React.FC = () => {
         </div>
 
         <div className="p-3 border-t border-border space-y-1.5">
+          <Button size="sm" className="w-full text-xs h-8" onClick={() => { handleSetState('working'); toast.success(`Running ${agent.name} now`); }}>
+            <Play className="w-3 h-3" /> Run Now
+          </Button>
+          <Button size="sm" variant="outline" className="w-full text-xs h-8" onClick={() => setSection('overview')}>
+            <MessageSquare className="w-3 h-3" /> Message
+          </Button>
+          <Button size="sm" variant="outline" className="w-full text-xs h-8" onClick={() => setSection('schedule')}>
+            <Calendar className="w-3 h-3" /> Schedule
+          </Button>
           {isActive ? (
             <Button size="sm" variant="outline" className="w-full text-xs h-8" onClick={() => handleSetState('paused')}>
               <Pause className="w-3 h-3" /> Pause
             </Button>
-          ) : (
-            <Button size="sm" className="w-full text-xs h-8" onClick={() => handleSetState('working')}>
+          ) : agent.state === 'paused' ? (
+            <Button size="sm" variant="outline" className="w-full text-xs h-8" onClick={() => handleSetState('working')}>
               <Play className="w-3 h-3" /> Resume
             </Button>
-          )}
-          <Button size="sm" variant="ghost" className="w-full text-xs h-8 text-destructive" onClick={() => { removeAgent(agent.id); navigate('/agents'); toast.success(`${agent.name} removed`); }}>
-            <Trash2 className="w-3 h-3" /> Remove
-          </Button>
+          ) : null}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="ghost" className="w-full text-xs h-8 text-destructive">
+                <Trash2 className="w-3 h-3" /> Remove from Office
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove {agent.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove this agent from your office. All configuration, memory, rules, and run history will be lost. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => { removeAgent(agent.id); navigate('/agents'); toast.success(`${agent.name} removed`); }}
+                >
+                  Yes, remove permanently
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
