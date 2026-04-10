@@ -638,6 +638,14 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
   const [newPriority, setNewPriority] = useState<RulePriority>('preference');
   const items = agent.ruleItems || [];
 
+  // Group by priority: hard-rule first, then safe, then preference
+  const priorityOrder: Record<RulePriority, number> = { 'hard-rule': 0, safe: 1, preference: 2 };
+  const sortedItems = [...items].sort((a, b) => {
+    const po = priorityOrder[a.priority] - priorityOrder[b.priority];
+    if (po !== 0) return po;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+
   const addItem = () => {
     if (!newContent.trim()) return;
     const item: RuleItem = {
@@ -645,6 +653,7 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
       content: newContent.trim(),
       priority: newPriority,
       enabled: true,
+      order: items.length,
     };
     updateAgent(agent.id, { ruleItems: [...items, item] });
     setNewContent('');
@@ -660,6 +669,12 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
     updateAgent(agent.id, { ruleItems: items.map(i => i.id === itemId ? { ...i, enabled: !i.enabled } : i) });
   };
 
+  const priorityBorderColor: Record<RulePriority, string> = {
+    safe: 'border-l-[hsl(var(--status-working))]',
+    preference: 'border-l-primary',
+    'hard-rule': 'border-l-destructive',
+  };
+
   const priorityColor: Record<RulePriority, string> = {
     safe: 'bg-status-working/10 text-status-working',
     preference: 'bg-primary/10 text-primary',
@@ -672,9 +687,21 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
     'hard-rule': 'Hard Rule',
   };
 
+  // Group items for section headers
+  const groups: { priority: RulePriority; items: typeof sortedItems }[] = [];
+  let lastPriority: RulePriority | null = null;
+  for (const item of sortedItems) {
+    if (item.priority !== lastPriority) {
+      groups.push({ priority: item.priority, items: [item] });
+      lastPriority = item.priority;
+    } else {
+      groups[groups.length - 1].items.push(item);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Shield} title="Rules & Boundaries" desc="Explicit rules and guardrails this agent must follow" />
+      <SectionHeader icon={Shield} title="Rules & Boundaries" desc="Rules are hard limits this agent will always follow" />
 
       <div className="p-3 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground">
@@ -712,21 +739,32 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
         </div>
       </div>
 
-      {/* Rule items */}
-      <div className="space-y-2">
-        {items.map(item => (
-          <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border rounded-xl group transition-opacity ${item.enabled ? 'border-border' : 'border-border/50 opacity-60'}`}>
-            <Switch checked={item.enabled} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm ${item.enabled ? 'text-foreground' : 'text-muted-foreground line-through'}`}>{item.content}</p>
-              <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full mt-1.5 inline-block ${priorityColor[item.priority]}`}>{priorityLabel[item.priority]}</span>
+      {/* Rule items grouped by priority */}
+      <div className="space-y-4">
+        {groups.map(group => (
+          <div key={group.priority}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${
+              group.priority === 'hard-rule' ? 'text-destructive' : group.priority === 'safe' ? 'text-status-working' : 'text-primary'
+            }`}>
+              {priorityLabel[group.priority]}s ({group.items.length})
+            </p>
+            <div className="space-y-1.5">
+              {group.items.map(item => (
+                <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border border-border border-l-4 ${priorityBorderColor[item.priority]} rounded-xl group transition-opacity ${!item.enabled ? 'opacity-60' : ''}`}>
+                  <Switch checked={item.enabled} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${item.enabled ? 'text-foreground' : 'text-muted-foreground line-through'}`}>{item.content}</p>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full mt-1.5 inline-block ${priorityColor[item.priority]}`}>{priorityLabel[item.priority]}</span>
+                  </div>
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
-            <button
-              onClick={() => removeItem(item.id)}
-              className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
           </div>
         ))}
         {items.length === 0 && (
