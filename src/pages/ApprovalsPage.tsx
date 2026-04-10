@@ -54,6 +54,7 @@ const ApprovalsPage: React.FC = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState<FilterTab>('pending');
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const loading = useSimulatedLoading(400);
 
   const reviewingRequest = reviewingId ? approvals.find(a => a.id === reviewingId) : null;
 
