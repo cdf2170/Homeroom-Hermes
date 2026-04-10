@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApprovals, resolveApproval } from '@/store/approvalStore';
 import { CATEGORY_LABELS, RISK_LABELS } from '@/types/approval';
-import type { ApprovalStatus, ApprovalCategory } from '@/types/approval';
+import type { ApprovalRequest, ApprovalCategory } from '@/types/approval';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
-  CheckCircle2, XCircle, Clock, Shield, ArrowRight,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  CheckCircle2, XCircle, Clock, Shield, ArrowRight, Eye,
   AlertTriangle, Zap, Globe, FileEdit, Terminal, Database,
-  Calendar, HelpCircle, Filter,
+  Calendar, HelpCircle, FileText, MessageSquare, FolderOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,12 +30,30 @@ const RISK_COLORS: Record<string, string> = {
   high: 'bg-destructive/10 text-destructive',
 };
 
+const RISK_BORDER: Record<string, string> = {
+  low: 'border-status-working/30',
+  medium: 'border-status-waiting/30',
+  high: 'border-destructive/30',
+};
+
 type FilterTab = 'pending' | 'resolved' | 'all';
+
+const timeAgo = (date: Date) => {
+  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+};
 
 const ApprovalsPage: React.FC = () => {
   const approvals = useApprovals();
   const navigate = useNavigate();
   const [tab, setTab] = useState<FilterTab>('pending');
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  const reviewingRequest = reviewingId ? approvals.find(a => a.id === reviewingId) : null;
 
   const filtered = approvals.filter(a => {
     if (tab === 'pending') return a.status === 'pending';
@@ -46,20 +66,13 @@ const ApprovalsPage: React.FC = () => {
   const handleApprove = (id: string, name: string) => {
     resolveApproval(id, 'approved');
     toast.success(`Approved request from ${name}`);
+    if (reviewingId === id) setReviewingId(null);
   };
 
   const handleDeny = (id: string, name: string) => {
     resolveApproval(id, 'denied');
     toast.success(`Denied request from ${name}`);
-  };
-
-  const timeAgo = (date: Date) => {
-    const mins = Math.floor((Date.now() - date.getTime()) / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
+    if (reviewingId === id) setReviewingId(null);
   };
 
   return (
@@ -73,20 +86,18 @@ const ApprovalsPage: React.FC = () => {
               : `${pendingCount} request${pendingCount !== 1 ? 's' : ''} waiting for your decision`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {pendingCount > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                approvals.filter(a => a.status === 'pending').forEach(a => resolveApproval(a.id, 'approved'));
-                toast.success(`Approved all ${pendingCount} requests`);
-              }}
-            >
-              <CheckCircle2 className="w-4 h-4" /> Approve all
-            </Button>
-          )}
-        </div>
+        {pendingCount > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              approvals.filter(a => a.status === 'pending').forEach(a => resolveApproval(a.id, 'approved'));
+              toast.success(`Approved all ${pendingCount} requests`);
+            }}
+          >
+            <CheckCircle2 className="w-4 h-4" /> Approve all
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -121,7 +132,6 @@ const ApprovalsPage: React.FC = () => {
               }`}
             >
               <div className="flex items-start gap-3">
-                {/* Agent avatar */}
                 <button
                   onClick={() => navigate(`/agents/${req.agentId}`)}
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-primary-foreground shrink-0 hover:scale-105 transition-transform"
@@ -165,8 +175,17 @@ const ApprovalsPage: React.FC = () => {
                       variant="ghost"
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => handleDeny(req.id, req.agentName)}
+                      title="Deny"
                     >
                       <XCircle className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => setReviewingId(req.id)}
+                    >
+                      <Eye className="w-4 h-4" /> Review
                     </Button>
                     <Button
                       size="sm"
@@ -198,6 +217,121 @@ const ApprovalsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Review Dialog */}
+      <Dialog open={!!reviewingRequest} onOpenChange={open => { if (!open) setReviewingId(null); }}>
+        {reviewingRequest && (
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-primary-foreground shrink-0"
+                  style={{ backgroundColor: reviewingRequest.agentColor }}
+                >
+                  {reviewingRequest.agentName[0]}
+                </div>
+                <div>
+                  <span className="text-base">{reviewingRequest.title}</span>
+                  <p className="text-xs font-normal text-muted-foreground mt-0.5">
+                    from {reviewingRequest.agentName} · {timeAgo(reviewingRequest.createdAt)}
+                  </p>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-2">
+              {/* Risk + Category badges */}
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${RISK_COLORS[reviewingRequest.risk]}`}>
+                  {RISK_LABELS[reviewingRequest.risk]}
+                </span>
+                <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full flex items-center gap-1">
+                  {React.createElement(CATEGORY_ICONS[reviewingRequest.category], { className: 'w-3 h-3' })}
+                  {CATEGORY_LABELS[reviewingRequest.category]}
+                </span>
+              </div>
+
+              {/* What the agent wants */}
+              <div className="p-3 bg-muted/50 rounded-xl">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Request</p>
+                <p className="text-sm text-foreground">{reviewingRequest.detail}</p>
+              </div>
+
+              {/* Context */}
+              {reviewingRequest.context && (
+                <div className={`p-3 border rounded-xl ${RISK_BORDER[reviewingRequest.risk]}`}>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" /> Context
+                  </p>
+                  <p className="text-sm text-foreground leading-relaxed">{reviewingRequest.context}</p>
+                </div>
+              )}
+
+              {/* Agent's reasoning */}
+              {reviewingRequest.reasoning && (
+                <div className="p-3 bg-primary/5 border border-primary/10 rounded-xl">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> Why it needs this
+                  </p>
+                  <p className="text-sm text-foreground leading-relaxed">{reviewingRequest.reasoning}</p>
+                </div>
+              )}
+
+              {/* Affected paths */}
+              {reviewingRequest.affectedPaths && reviewingRequest.affectedPaths.length > 0 && (
+                <div className="p-3 bg-muted/30 rounded-xl">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                    <FolderOpen className="w-3 h-3" /> What's affected
+                  </p>
+                  <div className="space-y-1">
+                    {reviewingRequest.affectedPaths.map((path, i) => (
+                      <p key={i} className="text-xs text-foreground font-mono bg-muted px-2 py-1 rounded">
+                        {path}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Risk warning for high risk */}
+              {reviewingRequest.risk === 'high' && (
+                <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-xl flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold text-destructive">High risk action</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      This action could modify files, run commands, or make changes that are difficult to undo. Review carefully before approving.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
+              <Button
+                variant="ghost"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => handleDeny(reviewingRequest.id, reviewingRequest.agentName)}
+              >
+                <XCircle className="w-4 h-4" /> Deny
+              </Button>
+              <div className="flex-1" />
+              <Button
+                variant="outline"
+                onClick={() => setReviewingId(null)}
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => handleApprove(reviewingRequest.id, reviewingRequest.agentName)}
+              >
+                <CheckCircle2 className="w-4 h-4" /> Approve
+              </Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 };
