@@ -9,6 +9,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { useModelStore, hasProviderKey } from '@/store/modelConfigStore';
 import { Agent } from '@/types/agent';
+import StateCoverage from '@/components/StateCoverage';
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 
 const timeAgo = (date: Date) => {
   const mins = Math.floor((Date.now() - date.getTime()) / 60000);
@@ -117,6 +119,7 @@ const TrustCenterPage: React.FC = () => {
   const agents = useAgents();
   const navigate = useNavigate();
   const modelStore = useModelStore();
+  const loading = useSimulatedLoading(500);
 
   const findings = analyzeRisks(agents);
   const warnings = findings.filter(f => f.level === 'warning' || f.level === 'risk');
@@ -136,6 +139,7 @@ const TrustCenterPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      <StateCoverage loading={loading} loadingRows={6}>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display font-bold text-2xl text-foreground">Trust Center</h1>
@@ -301,6 +305,7 @@ const TrustCenterPage: React.FC = () => {
           <span className="font-semibold">How Homeroom keeps you safe:</span> All agents have explicit permission boundaries. Cloud connections are opt-in. Background agents require your approval. API keys are never exposed to agents or shown in outputs. You can review every action in the activity log.
         </p>
       </div>
+      </StateCoverage>
     </div>
   );
 };

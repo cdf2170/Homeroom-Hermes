@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import StateCoverage from '@/components/StateCoverage';
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 import {
   Building2, Users, AlertTriangle, ArrowRight, Sparkles, Shield,
   RefreshCw, HelpCircle, Settings, Plus, CheckCircle2, Info,
@@ -15,6 +17,7 @@ const FrontDeskPage: React.FC = () => {
   const summaries = api.listAgents();
   const findings = api.getTrustFindings();
   const health = api.getRuntimeHealth();
+  const loading = useSimulatedLoading(400);
 
   const active = summaries.filter(a => a.state === 'working' || a.state === 'walking');
   const attention = summaries.filter(a => a.needsAttention);
@@ -58,7 +61,8 @@ const FrontDeskPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {/* Header */}
+      <StateCoverage loading={loading} loadingRows={6}>
+      {/* (StateCoverage wraps all content below) */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display font-bold text-2xl text-foreground">Front Desk</h1>
@@ -167,6 +171,7 @@ const FrontDeskPage: React.FC = () => {
           </Button>
         </div>
       )}
+      </StateCoverage>
     </div>
   );
 };

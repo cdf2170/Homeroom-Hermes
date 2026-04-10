@@ -3,6 +3,8 @@ import { useAgents } from '@/store/agentStore';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import StateCoverage from '@/components/StateCoverage';
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 import {
   Search, Activity, AlertTriangle, CheckCircle2, Clock,
   Filter, Zap, ArrowRight, Loader2,
@@ -41,6 +43,7 @@ const ActivityPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const loading = useSimulatedLoading(500);
 
   const allRuns = useMemo(() =>
     agents
@@ -116,65 +119,66 @@ const ActivityPage: React.FC = () => {
       </div>
 
       {/* Runs timeline */}
-      <div className="space-y-2">
-        {filtered.map(run => {
-          const style = runStatusStyle[run.status] || runStatusStyle.pending;
-          const StatusIcon = style.icon;
-          return (
-            <div key={run.id} className="flex items-start gap-3 p-4 bg-card border border-border rounded-xl hover:shadow-sm transition-shadow">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0"
-                style={{ backgroundColor: run.agentColor }}
-              >
-                {run.agentName[0]}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <button
-                    onClick={() => navigate(`/agents/${run.agentId}`)}
-                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
-                  >
-                    {run.agentName}
-                  </button>
-                  <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
-                    <StatusIcon className={`w-3 h-3 ${run.status === 'running' ? 'animate-spin' : ''}`} />
-                    {style.label}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground capitalize">{run.trigger}</span>
+      <StateCoverage
+        loading={loading}
+        empty={allRuns.length === 0}
+        emptyIcon={Activity}
+        emptyTitle="No activity yet"
+        emptyDescription="Your agents will show runs here once they start working. Assign a task to get started."
+        loadingRows={5}
+      >
+        <div className="space-y-2">
+          {filtered.map(run => {
+            const style = runStatusStyle[run.status] || runStatusStyle.pending;
+            const StatusIcon = style.icon;
+            return (
+              <div key={run.id} className="flex items-start gap-3 p-4 bg-card border border-border rounded-xl hover:shadow-sm transition-shadow">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0"
+                  style={{ backgroundColor: run.agentColor }}
+                >
+                  {run.agentName[0]}
                 </div>
-                <p className="text-sm text-foreground">{run.inputSummary}</p>
-                {run.outputSummary && (
-                  <p className="text-xs text-muted-foreground mt-1">{run.outputSummary}</p>
-                )}
-                {run.errorSummary && (
-                  <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {run.errorSummary}
-                  </p>
-                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <button
+                      onClick={() => navigate(`/agents/${run.agentId}`)}
+                      className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                    >
+                      {run.agentName}
+                    </button>
+                    <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
+                      <StatusIcon className={`w-3 h-3 ${run.status === 'running' ? 'animate-spin' : ''}`} />
+                      {style.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground capitalize">{run.trigger}</span>
+                  </div>
+                  <p className="text-sm text-foreground">{run.inputSummary}</p>
+                  {run.outputSummary && (
+                    <p className="text-xs text-muted-foreground mt-1">{run.outputSummary}</p>
+                  )}
+                  {run.errorSummary && (
+                    <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> {run.errorSummary}
+                    </p>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{timeAgo(run.startedAt)}</span>
               </div>
-              <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{timeAgo(run.startedAt)}</span>
+            );
+          })}
+
+          {filtered.length === 0 && allRuns.length > 0 && (
+            <div className="text-center py-12">
+              <Filter className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
+              <p className="text-muted-foreground font-medium">No runs match your filters</p>
+              <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setStatusFilter('all'); setAgentFilter(null); setSearch(''); }}>
+                Clear filters
+              </Button>
             </div>
-          );
-        })}
-
-        {filtered.length === 0 && allRuns.length > 0 && (
-          <div className="text-center py-12">
-            <Filter className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
-            <p className="text-muted-foreground font-medium">No runs match your filters</p>
-            <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setStatusFilter('all'); setAgentFilter(null); setSearch(''); }}>
-              Clear filters
-            </Button>
-          </div>
-        )}
-
-        {allRuns.length === 0 && (
-          <div className="text-center py-16">
-            <Activity className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
-            <p className="text-muted-foreground font-medium">No activity yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Your agents will show runs here once they start working.</p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </StateCoverage>
     </div>
   );
 };

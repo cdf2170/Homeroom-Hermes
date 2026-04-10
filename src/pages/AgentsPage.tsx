@@ -3,9 +3,11 @@ import { useAgents } from '@/store/agentStore';
 import { STATE_LABELS } from '@/types/agent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import StateCoverage from '@/components/StateCoverage';
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 import {
   Plus, Search, Cpu, Cloud, Play, AlertTriangle, Zap,
-  Clock, ArrowRight, Filter, Power,
+  Clock, ArrowRight, Filter, Power, Users,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { updateAgent } from '@/store/agentStore';
@@ -48,6 +50,7 @@ const AgentsPage: React.FC = () => {
   const initialFilter = searchParams.get('filter') as FilterType | null;
   const [filter, setFilter] = useState<FilterType>(initialFilter || 'all');
   const [search, setSearch] = useState('');
+  const loading = useSimulatedLoading(500);
 
   const filtered = useMemo(() => {
     let result = agents;
@@ -107,85 +110,82 @@ const AgentsPage: React.FC = () => {
       </div>
 
       {/* Agent Cards */}
-      <div className="grid gap-3">
-        {filtered.map(agent => (
-          <button
-            key={agent.id}
-            onClick={() => navigate(`/agents/${agent.id}`)}
-            className="flex items-center gap-4 p-4 bg-card border border-border rounded-xl hover:shadow-md transition-all text-left group"
-          >
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold text-primary-foreground shadow-sm relative shrink-0"
-              style={{ backgroundColor: agent.appearance.outfitColor }}
+      <StateCoverage
+        loading={loading}
+        empty={agents.length === 0}
+        emptyIcon={Users}
+        emptyTitle="Your team is empty"
+        emptyDescription="Create your first agent to get started. Pick a template or build from scratch."
+        emptyAction={{ label: 'Create Agent', onClick: () => navigate('/templates') }}
+        loadingRows={4}
+      >
+        <div className="grid gap-3">
+          {filtered.map(agent => (
+            <button
+              key={agent.id}
+              onClick={() => navigate(`/agents/${agent.id}`)}
+              className="flex items-center gap-4 p-4 bg-card border border-border rounded-xl hover:shadow-md transition-all text-left group"
             >
-              {agent.name[0]}
-              <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${stateColor(agent.state)}`} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-display font-bold text-foreground">{agent.name}</h3>
-                <span className="text-xs text-muted-foreground">{STATE_LABELS[agent.state]}</span>
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold text-primary-foreground shadow-sm relative shrink-0"
+                style={{ backgroundColor: agent.appearance.outfitColor }}
+              >
+                {agent.name[0]}
+                <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${stateColor(agent.state)}`} />
               </div>
-              <p className="text-sm text-muted-foreground truncate">{agent.purpose || agent.role}</p>
-              {agent.currentTask && (
-                <p className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-status-working" /> {agent.currentTask}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col items-end gap-1 shrink-0">
-              <div className="flex items-center gap-1.5">
-                {agent.runtimeMode === 'local' ? (
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                    <Cpu className="w-3 h-3" /> Local
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-display font-bold text-foreground">{agent.name}</h3>
+                  <span className="text-xs text-muted-foreground">{STATE_LABELS[agent.state]}</span>
+                </div>
+                <p className="text-sm text-muted-foreground truncate">{agent.purpose || agent.role}</p>
+                {agent.currentTask && (
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-status-working" /> {agent.currentTask}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  {agent.runtimeMode === 'local' ? (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                      <Cpu className="w-3 h-3" /> Local
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                      <Cloud className="w-3 h-3" /> Cloud
+                    </span>
+                  )}
+                </div>
+                {agent.lastRunAt && (
+                  <span className="text-[10px] text-muted-foreground">Last run {timeAgo(agent.lastRunAt)}</span>
+                )}
+                {agent.schedule && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> {agent.schedule.plainEnglish}
                   </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                    <Cloud className="w-3 h-3" /> Cloud
+                )}
+                {agent.lastRunStatus === 'failed' && (
+                  <span className="text-[10px] text-destructive flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Last run failed
                   </span>
                 )}
               </div>
-              {agent.lastRunAt && (
-                <span className="text-[10px] text-muted-foreground">Last run {timeAgo(agent.lastRunAt)}</span>
-              )}
-              {agent.schedule && (
-                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> {agent.schedule.plainEnglish}
-                </span>
-              )}
-              {agent.lastRunStatus === 'failed' && (
-                <span className="text-[10px] text-destructive flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> Last run failed
-                </span>
-              )}
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-          </button>
-        ))}
+              <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+            </button>
+          ))}
 
-        {filtered.length === 0 && agents.length > 0 && (
-          <div className="text-center py-12">
-            <Filter className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
-            <p className="text-muted-foreground font-medium">No agents match your filters</p>
-            <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setFilter('all'); setSearch(''); }}>
-              Clear filters
-            </Button>
-          </div>
-        )}
-
-        {agents.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
-              <Plus className="w-6 h-6 text-primary" />
+          {filtered.length === 0 && agents.length > 0 && (
+            <div className="text-center py-12">
+              <Filter className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
+              <p className="text-muted-foreground font-medium">No agents match your filters</p>
+              <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setFilter('all'); setSearch(''); }}>
+                Clear filters
+              </Button>
             </div>
-            <p className="text-muted-foreground font-medium">Your team is empty</p>
-            <p className="text-sm text-muted-foreground mt-1 mb-4">Create your first agent to get started</p>
-            <Button onClick={() => navigate('/templates')}>
-              <Plus className="w-4 h-4" /> Create Agent
-            </Button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </StateCoverage>
     </div>
   );
 };

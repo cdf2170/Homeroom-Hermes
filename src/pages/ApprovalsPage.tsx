@@ -4,6 +4,8 @@ import { useApprovals, resolveApproval } from '@/store/approvalStore';
 import { CATEGORY_LABELS, RISK_LABELS } from '@/types/approval';
 import type { ApprovalRequest, ApprovalCategory } from '@/types/approval';
 import { Button } from '@/components/ui/button';
+import StateCoverage from '@/components/StateCoverage';
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -52,6 +54,7 @@ const ApprovalsPage: React.FC = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState<FilterTab>('pending');
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const loading = useSimulatedLoading(400);
 
   const reviewingRequest = reviewingId ? approvals.find(a => a.id === reviewingId) : null;
 
@@ -121,6 +124,7 @@ const ApprovalsPage: React.FC = () => {
       </div>
 
       {/* Request list */}
+      <StateCoverage loading={loading} loadingRows={4}>
       <div className="space-y-3">
         {filtered.map(req => {
           const CatIcon = CATEGORY_ICONS[req.category];
@@ -217,6 +221,7 @@ const ApprovalsPage: React.FC = () => {
           </div>
         )}
       </div>
+      </StateCoverage>
 
       {/* Review Dialog */}
       <Dialog open={!!reviewingRequest} onOpenChange={open => { if (!open) setReviewingId(null); }}>
