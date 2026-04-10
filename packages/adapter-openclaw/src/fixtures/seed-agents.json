@@ -1,0 +1,18 @@
+[
+  {
+    "backendRef": "mock-agent-001",
+    "name": "Research Helper",
+    "workspacePath": "/mock/workspaces/research-helper",
+    "modelRef": "mock-local",
+    "schedulerActive": false,
+    "state": "idle"
+  },
+  {
+    "backendRef": "mock-agent-002",
+    "name": "Daily Organizer",
+    "workspacePath": "/mock/workspaces/daily-organizer",
+    "modelRef": "mock-local",
+    "schedulerActive": true,
+    "state": "idle"
+  }
+]
