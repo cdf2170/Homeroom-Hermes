@@ -17,6 +17,7 @@ import CreateAgentPage from "./pages/CreateAgentPage";
 import FrontDeskPage from "./pages/FrontDeskPage";
 import PluginsPage from "./pages/PluginsPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
+import AgentWelcomePage from "./pages/AgentWelcomePage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const AppRoutes = () => (
     <Route path="/office" element={<AppLayout><OfficePage /></AppLayout>} />
     <Route path="/agents" element={<AppLayout><AgentsPage /></AppLayout>} />
     <Route path="/agents/:id" element={<AppLayout><AgentProfilePage /></AppLayout>} />
+    <Route path="/agents/:id/welcome" element={<AgentWelcomePage />} />
     <Route path="/activity" element={<AppLayout><ActivityPage /></AppLayout>} />
     <Route path="/audit" element={<AppLayout><AuditPage /></AppLayout>} />
     <Route path="/templates" element={<AppLayout><TemplatesPage /></AppLayout>} />
