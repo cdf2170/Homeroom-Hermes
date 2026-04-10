@@ -641,9 +641,11 @@ const SecureSetupPage: React.FC = () => {
               </p>
               <ul className="space-y-1">
                 {[
-                  'Your keys are stored only on this device',
-                  'Set spending limits at each provider dashboard',
+                  'All keys are encrypted with AES-256 and stored only on this device',
+                  'Each key was verified against the real provider API',
+                  'Set spending limits at each provider dashboard to cap exposure',
                   'You can rotate or remove keys anytime in Settings → API Keys',
+                  'Our zero-knowledge architecture means we can\u2019t access your keys even if we wanted to',
                 ].map(tip => (
                   <li key={tip} className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <Check className="w-3 h-3 text-secondary shrink-0" /> {tip}
