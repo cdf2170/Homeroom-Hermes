@@ -1,8 +1,127 @@
 
-
 # Homeroom UX Polish — Making It Feel Calm and Confident
 
-This is a broad UX enhancement pass across the entire app. The work groups into 6 implementation batches.
+This is a broad UX enhancement pass across the entire app. The work groups into 6 implementation batches plus 5 cross-cutting architectural requirements.
+
+---
+
+## Cross-Cutting Requirement A: State Coverage Matrix
+
+Every major screen MUST handle these 9 states explicitly:
+
+| State | What it means | UI treatment |
+|-------|--------------|--------------|
+| **Loading** | Data is being fetched | Skeleton placeholders matching final layout shape |
+| **Empty** | No data exists yet | Friendly guidance + first action CTA |
+| **Success** | Action completed | Toast or inline confirmation with next step |
+| **Error** | Something failed | Retry button + plain-English explanation |
+| **Disconnected** | No backend/runtime | Banner: "Running in demo mode — connect models to go live" |
+| **Demo mode** | No real runtime configured | Subtle badge on affected components, all features explorable |
+| **Unsaved changes** | User edited but didn't save | Dot indicator on save button, confirm-before-leave dialog |
+| **First-run** | User's first time on this screen | Contextual onboarding hint or welcome card |
+| **Returning user** | User has history | Show recent activity, skip onboarding hints |
+
+Screens that must implement all 9: Front Desk, Agent Profile, Agents List, Trust Center, Settings, Connections.
+Screens with subset: Office (loading, empty, demo), Templates (loading, empty), Activity (loading, empty, error).
+
+---
+
+## Cross-Cutting Requirement B: Post-Create Success Loop
+
+After agent creation, the app guides users through their first win:
+
+1. **Success screen** — "Meet [Agent Name]" with their sprite, a congratulations moment, and a single CTA: "Run your first task"
+2. **Suggested first task** — Pre-filled input based on agent purpose (e.g., "Summarize this article" for a Research agent). One-click to run.
+3. **Run result** — Show output inline with "Here's what [Agent] did" framing. Include trust signals: "Ran locally", "No external calls made"
+4. **Next setup suggestions** — After first successful run, show 3 cards: "Add a memory", "Set a safety rule", "Try a harder task"
+5. **Ownership moment** — After 2+ interactions, show: "You and [Agent] are getting started. Visit their profile to fine-tune."
+
+This flow lives in a new `PostCreateFlow.tsx` component, triggered after `CreateAgentPage` completes. Progress tracked in localStorage.
+
+---
+
+## Cross-Cutting Requirement C: Connections Hub Scope
+
+The Connections/Plugins page (`PluginsPage.tsx`) must be a full product surface:
+
+**What the page shows:**
+- Connection status dashboard: X connected, Y available, Z coming soon
+- Category sections: AI Providers, Productivity, Communication, Data & Web, Dev Tools
+- Each plugin card: name, icon, one-line purpose, setup method badge (API Key / OAuth / Built-in), safety tier badge
+
+**Safety tier badges on every plugin:**
+- 🟢 Safe (local-only, no data leaves device): Ollama, local file tools
+- 🟡 Review recommended (cloud, sends data externally): OpenAI, Google Calendar, Gmail
+- 🔴 Advanced (powerful, high-access): Slack workspace, Notion full access, webhooks
+
+**First 15 plugins (priority order):**
+1. Ollama (Safe, Built-in)
+2. OpenRouter (Review, API Key)
+3. OpenAI (Review, API Key)
+4. Anthropic (Review, API Key)
+5. Google Calendar (Review, OAuth)
+6. Gmail (Review, OAuth)
+7. Notion (Advanced, OAuth)
+8. Slack (Advanced, OAuth)
+9. GitHub (Review, OAuth)
+10. Webhook (Advanced, API Key)
+11–15: Brave Search, Tavily, Linear, Jira, Discord (coming soon)
+
+**How connections appear in agent profiles:**
+- Tools tab shows which connections are available to this agent
+- Each connected plugin shows as a toggleable capability card
+- Safety rail updates to reflect connected external services
+
+**Docs links:** Each plugin card links to setup documentation (placeholder URLs initially)
+
+---
+
+## Cross-Cutting Requirement D: Microcopy Trust System
+
+Every screen must answer four questions through inline copy:
+
+| Question | Implementation |
+|----------|---------------|
+| **What is this?** | Section header subtitle (1 line, always visible) |
+| **Why would I use it?** | Tooltip or "Learn more" expandable (on demand) |
+| **Is this safe?** | Trust badge or safety note on anything involving data/cloud/permissions |
+| **What happens next?** | Action button labels include consequence ("Save and apply", "Run now — takes ~10s") |
+
+**Microcopy inventory (must be added):**
+
+- Agent Profile Overview: "This is [Agent]'s identity — how they introduce themselves."
+- Memory section: "Memories help [Agent] remember things between conversations."
+- Rules section: "Rules are hard limits [Agent] will always follow."
+- Tools section: "Tools control what [Agent] can access. Fewer tools = safer agent."
+- Schedule section: "Schedules let [Agent] work without you being here."
+- Intelligence selector: "Higher = smarter but slower and more expensive."
+- Background toggle: "ON: [Agent] works even when Homeroom is closed. OFF: only when you're here."
+- Internet toggle: "ON: [Agent] can reach websites. OFF: fully offline."
+- Local vs Cloud: "Local: private, runs on your machine. Cloud: more powerful, sends data to a provider."
+- Connection cards: "Your API key stays on your device and is never sent to Homeroom servers."
+
+---
+
+## Cross-Cutting Requirement E: Visual Hierarchy
+
+The product hierarchy defines information priority and prevents competing attention:
+
+| Tier | Screen | Role | Visual weight |
+|------|--------|------|--------------|
+| **1 — Command** | Front Desk | What's happening + what to do next | Highest — first thing users see, warm summary |
+| **2 — First value** | Create Agent + Post-Create Flow | First success moment | Focused, minimal, celebratory |
+| **3 — Control surface** | Agent Profile | Main editing workspace | Dense but organized, tabbed |
+| **4 — Trust** | Trust Center + Safety Rails | Review and confidence | Calm, status-driven, green/amber/red |
+| **5 — Atmosphere** | Office | Living visualization | Immersive, low-info-density, delightful |
+| **6 — Extend** | Connections/Plugins | Add capabilities | Directory-style, badge-heavy |
+| **7 — System** | Settings | Global configuration | Minimal, functional |
+
+**Design rules from hierarchy:**
+- Tier 1-2 screens: Large type, generous whitespace, single primary CTA per view
+- Tier 3: Dense content OK, but must use clear tab/section separation
+- Tier 4: Status colors dominate (green/amber/red), minimal decoration
+- Tier 5: Visual richness allowed, sprites and animation
+- Tier 6-7: Compact, utility-focused, minimal emotional design
 
 ---
 
@@ -15,6 +134,7 @@ Upgrade `FrontDeskPage.tsx` from a basic summary into the app's calm command cen
 - Add a setup checklist component (Connect OpenClaw, Set up models, Review safety defaults, Create first agent, Run a test task) with progress tracking via localStorage
 - Add "Suggested next action" buttons contextually (Add memory, Review rules, Run a test task, Make background-safe, Connect cloud models)
 - Improve the welcome summary to feel conversational, not metric-heavy
+- **State coverage:** All 9 states including first-run welcome vs returning user dashboard
 
 ## Batch 2: Rich Empty States + Microcopy
 
@@ -26,85 +146,41 @@ Touch every section in `AgentProfilePage.tsx` to add helpful empty states and in
 - Activity/Runs: "No recent runs — Run this agent once to see what it can do." with a Run Now button
 - Tools: "No tools configured — Set up guardrails to control what this agent can do." with a Safe Defaults button
 
-**Microcopy ("What does this mean?") added to:**
-- Intelligence level selector: "Higher settings can handle harder tasks, but may cost more or feel slower."
-- Background toggle: "This lets the agent keep working without you reopening Homeroom."
-- Internet access toggle: "Allows this agent to reach websites and external services."
-- Schedule presets: plain-English consequences for each option
-- Local vs Cloud runtime: "Local: runs on your machine, fully private. Cloud: uses an online AI provider, more powerful."
+**Microcopy from Requirement D applied to all sections.**
 
 ## Batch 3: Sticky Safety Summary + Visual Grouping
 
 Make safety and identity visible at all times on the agent profile.
 
-- Add a persistent **Safety Summary rail** to the left sidebar of `AgentProfilePage.tsx` (below the section nav, above actions). Shows: local/cloud, manual/background, internet access, approval required, trust level — always visible regardless of active tab
-- Add **"Recommended" / "Safe default" / "Advanced"** badges on:
-  - Model selection (smartness level)
-  - Schedule presets
-  - Permission presets (add Safe / Balanced / Advanced presets to Tools section)
-  - Background mode
-- Add a visible **"Safe vs Advanced"** divider: sections Overview through Rules labeled as "Essentials", Schedule through Advanced labeled with a subtle "Advanced" header and "Most people won't need this" note
-- Add trust language inline: "Stored locally", "Cloud-backed", "Needs review before background use", "No exposed secrets detected" as small badges/tags on relevant fields
+- Persistent Safety Summary rail in sidebar
+- "Recommended" / "Safe default" / "Advanced" badges on all config options
+- Safe vs Advanced section divider with "Most people won't need this" note
+- Trust language inline: "Stored locally", "Cloud-backed", "Needs review", "No exposed secrets"
 
 ## Batch 4: Tactile Memory + Rules
 
 Make Memory and Rules sections feel like organizing cards.
 
-**Memory enhancements:**
-- Add icons per category (heart for preference, lightbulb for fact, bookmark for context, sticky-note for note)
-- Add `pinned` field to `MemoryItem` type; pinned items float to top with a pin icon
-- Quick-add chips below the add form: "User preference", "Important fact", "Safety rule" — clicking pre-fills category and placeholder
-- Richer card design with subtle left-border color by category
+- Category icons (heart, lightbulb, bookmark, sticky-note)
+- Pinned memories float to top
+- Quick-add chips pre-fill category and placeholder
+- Rules: ordered, grouped by priority with colored borders
+- Quick-add rule chips: "Never do...", "Always ask before...", "Prefer..."
 
-**Rules enhancements:**
-- Add `order` field to `RuleItem`; up/down arrow buttons to reorder
-- Group rules visually by priority: Safety rules first (green border), then Preferences (blue), then Hard Rules (red)
-- Quick-add chips: "Never do...", "Always ask before...", "Prefer..."
+## Batch 5: Run Detail + Templates + List Polish + Post-Create Flow
 
-## Batch 5: Run Detail + Templates + List Polish
+- **Run detail drawer** with full lifecycle view
+- **Template chooser** with outcome descriptions and "Good for" tags
+- **Agent list** with filters, sort, inline actions, per-filter empty states
+- **Post-create success flow** (Requirement B) implemented here
 
-**Run detail drawer** (`RunDetailDrawer.tsx` — new component using Sheet):
-- What was asked (input)
-- What happened (plain-English summary)
-- What the agent returned (expandable output)
-- Whether anything was blocked/redacted
-- Whether approval was needed
-- Model/runtime used
-- Status lifecycle: Queued, Running, Succeeded, Failed, Cancelled
-- Timestamps + duration
-- Retry button
-- Clickable from Activity section and AgentsPage
+## Batch 6: Onboarding + Trust Center + State Coverage + Connections
 
-**Template chooser enhancement** in `TemplatesPage.tsx`:
-- Add outcome-focused descriptions: "Research Assistant — Finds sources, compares options, and summarizes clearly"
-- Add "Good for" tags on each template
-
-**Agent list polish** in `AgentsPage.tsx`:
-- Add filters: "Background", "Never run", "Not configured"
-- Add sort dropdown: name, last run, status
-- Add enable/disable toggle directly on cards
-- Add "Run now" button on cards
-- Add "why flagged" hint text on attention cards
-- Empty states per filter: "No background agents", "No cloud agents"
-
-## Batch 6: Onboarding + Trust Center + State Coverage
-
-**Onboarding expansion** in `OnboardingPage.tsx`:
-- Add setup checklist step with real state detection
-- Add explicit connection states: demo mode, local-only, cloud configured
-- Persist setup progress to localStorage
-
-**Trust Center completion** in `TrustCenterPage.tsx`:
-- Overall status badge: Safe / Needs review / At risk
-- Per-agent safety summary cards (reuse SafetySummaryCard)
-- Visual severity levels: informational (blue), review (amber), risky (red)
-- Trust language: "No exposed secrets detected", "All agents use local models"
-
-**Global state coverage:**
-- Add loading skeleton component
-- Add error state with retry for all data-fetching screens
-- Add unsaved changes indicator to EditableField (already partially there)
-- Add destructive confirmation dialog for agent deletion
+- **Onboarding** with setup checklist and connection state detection
+- **Trust Center** with overall status badge, per-agent safety cards, severity levels
+- **Connections hub** fully scoped per Requirement C
+- **Global state coverage** audit — verify all screens against Requirement A matrix
+- **Loading skeletons**, error states with retry, unsaved changes indicators, destructive confirmation dialogs
 
 ---
 
@@ -112,15 +188,18 @@ Make Memory and Rules sections feel like organizing cards.
 
 | File | Changes |
 |------|---------|
-| `src/pages/FrontDeskPage.tsx` | Major rewrite — checklist, recent changes, suggested actions |
-| `src/pages/AgentProfilePage.tsx` | Heavy — empty states, microcopy, safety rail, memory/rules enhancements, recommended badges, safe/advanced divider |
+| `src/pages/FrontDeskPage.tsx` | Major rewrite — checklist, recent changes, suggested actions, all 9 states |
+| `src/pages/AgentProfilePage.tsx` | Heavy — empty states, microcopy, safety rail, memory/rules, badges, divider |
 | `src/types/agent.ts` | Add `pinned` to MemoryItem, `order` to RuleItem |
 | `src/components/RunDetailDrawer.tsx` | New — sheet-based run detail view |
+| `src/components/PostCreateFlow.tsx` | New — post-creation success loop |
 | `src/pages/AgentsPage.tsx` | Filters, sort, inline actions, empty states |
 | `src/pages/TemplatesPage.tsx` | Outcome descriptions, "Good for" tags |
-| `src/pages/OnboardingPage.tsx` | Setup states, checklist |
+| `src/pages/OnboardingPage.tsx` | Setup states, checklist, connection detection |
 | `src/pages/TrustCenterPage.tsx` | Overall badge, severity colors, agent cards |
+| `src/pages/PluginsPage.tsx` | Full connections hub with safety tiers, docs links |
 | `src/services/mockApi.ts` | Extend with recent events query |
+| `src/components/StateCoverage.tsx` | New — reusable loading/empty/error/disconnected wrappers |
 
 ---
 
@@ -130,8 +209,7 @@ Make Memory and Rules sections feel like organizing cards.
 2. Batch 3 (safety summary + recommended badges) — builds confidence
 3. Batch 4 (tactile memory + rules) — makes core editing satisfying
 4. Batch 1 (Front Desk upgrade) — command center
-5. Batch 5 (run detail + templates + list) — depth
-6. Batch 6 (onboarding + trust + state coverage) — polish
+5. Batch 5 (run detail + templates + list + post-create flow) — depth
+6. Batch 6 (onboarding + trust + state coverage audit + connections) — polish
 
-This is roughly 6 implementation sessions. Shall I start with Batch 2?
-
+Cross-cutting requirements A–E are applied continuously across all batches, not as separate work items.
