@@ -1,123 +1,137 @@
 
 
-# Homeroom Plugins / Connections — Implementation Plan
+# Homeroom UX Polish — Making It Feel Calm and Confident
 
-Build a full Plugins page with browsable cards, detail drawers, and setup flows — styled to feel like inviting tools into your office, not configuring integrations.
-
----
-
-## New Files
-
-### 1. `src/data/plugins.ts` — Plugin content data
-
-Contains all 15 plugins as a typed array with fields: id, name, category, description, agentCapabilities, accessDescription, type (local/cloud), safetyLabel (Safe/Review recommended/Advanced), setupMethod, docsUrl, setupGuideLabel, onboardingMicrocopy, icon (lucide icon name). Also exports category groupings, beginner-safe list, and advanced list.
-
-### 2. `src/types/plugin.ts` — Plugin types
-
-```text
-PluginSafetyLabel = 'Safe' | 'Review recommended' | 'Advanced'
-PluginType = 'local' | 'cloud' | 'local-or-cloud'
-PluginSetupMethod = 'api-key' | 'oauth' | 'local-connection' | 'bot-token' | 'built-in' | 'oauth-or-token'
-PluginCategory = 'Models / AI Providers' | 'Productivity' | 'Communication' | 'Developer Tools' | 'Files & Storage' | 'Home / Automation' | 'Research' | 'Core System'
-
-interface Plugin {
-  id, name, category, description, agentCapabilities, accessDescription,
-  type, safetyLabel, setupMethod, docsUrl, setupGuideLabel, onboardingMicrocopy, icon
-}
-
-interface PluginConnection {
-  pluginId, status: 'connected' | 'disconnected', connectedAt?, config?
-}
-```
-
-### 3. `src/pages/PluginsPage.tsx` — Main plugins page
-
-**Layout:**
-- Hero section: "Plugins & Connections" with subtitle "Invite useful tools into your office"
-- "Most people start with..." row highlighting 4 beginner-safe plugins (OpenClaw, Local Files, Google Calendar, OpenRouter) with a green "Recommended" badge
-- Category-grouped grid of plugin cards
-- Filter bar: All / Connected / Local / Cloud
-- Search input
-
-**Plugin card design:**
-- Icon + name + one-sentence description
-- Safety badge: green (Safe), amber (Review recommended), red (Advanced)
-- Local/Cloud pill badge
-- Setup method hint (e.g., "API key" / "Sign in with Google")
-- Connected status indicator if connected
-- Click opens detail drawer
-
-### 4. `src/components/plugins/PluginDetailDrawer.tsx` — Detail sheet
-
-Uses the existing Sheet component. Contains:
-- Plugin icon + name + category
-- Safety badge (colored)
-- Description paragraph
-- "What agents can do with this" section (card with capability text)
-- "What access this gives" section (card with access text, read vs write called out)
-- Local vs Cloud explainer inline ("Local: runs on your machine, fully private" / "Cloud: sends data to an online service")
-- Setup method explained in plain English:
-  - API key: "You'll paste a key from [Provider]. It's stored locally on your device."
-  - OAuth: "You'll sign in with your [Provider] account. Homeroom only gets the access you approve."
-  - Local connection: "Connects to software already running on your machine."
-  - Bot token: "You'll create a bot in [Provider] and paste its token here."
-  - Built-in: "This works out of the box — no setup needed."
-- "Official docs" link (external, with ExternalLink icon)
-- Onboarding microcopy paragraph
-- Setup / Connect button (opens setup flow)
-- If connected: status indicator, disconnect button
-
-### 5. `src/components/plugins/PluginSetupFlow.tsx` — Setup flow component
-
-Inline setup within the drawer (not a separate page):
-- API key method: masked input field + "Where do I find this?" link to docs + Save button
-- OAuth method: "Sign in with [Provider]" button (mock/placeholder) + scope explanation
-- Local connection: "Connect to [runtime]" button + status check indicator
-- Bot token: input + docs link
-- Built-in: "Already enabled" confirmation
-
-All flows show: "Stored locally on your device" trust language for API keys, "You control what access to give" for OAuth.
+This is a broad UX enhancement pass across the entire app. The work groups into 6 implementation batches.
 
 ---
 
-## Modified Files
+## Batch 1: Front Desk Enhancement
 
-### 6. `src/App.tsx`
-- Add route: `/plugins` -> `PluginsPage`
+Upgrade `FrontDeskPage.tsx` from a basic summary into the app's calm command center.
 
-### 7. `src/components/AppSidebar.tsx`
-- Add nav item: Plug icon, "Plugins", `/plugins` — placed between Templates and Settings
+- Add a "What changed recently" section showing last 5 agent events across all agents
+- Add "Ready to automate" cards for agents that could safely run in background
+- Add a setup checklist component (Connect OpenClaw, Set up models, Review safety defaults, Create first agent, Run a test task) with progress tracking via localStorage
+- Add "Suggested next action" buttons contextually (Add memory, Review rules, Run a test task, Make background-safe, Connect cloud models)
+- Improve the welcome summary to feel conversational, not metric-heavy
+
+## Batch 2: Rich Empty States + Microcopy
+
+Touch every section in `AgentProfilePage.tsx` to add helpful empty states and inline explainers.
+
+**Empty states with guidance:**
+- Memory: "No memory yet — Add a few things this agent should remember, like your writing preferences or important facts." with quick-add chips (User preference, Important fact, Standing context)
+- Rules: "No rules yet — Add rules to keep this agent predictable and safe." with quick-add chips (Safety rule, Preference, Hard limit)
+- Activity/Runs: "No recent runs — Run this agent once to see what it can do." with a Run Now button
+- Tools: "No tools configured — Set up guardrails to control what this agent can do." with a Safe Defaults button
+
+**Microcopy ("What does this mean?") added to:**
+- Intelligence level selector: "Higher settings can handle harder tasks, but may cost more or feel slower."
+- Background toggle: "This lets the agent keep working without you reopening Homeroom."
+- Internet access toggle: "Allows this agent to reach websites and external services."
+- Schedule presets: plain-English consequences for each option
+- Local vs Cloud runtime: "Local: runs on your machine, fully private. Cloud: uses an online AI provider, more powerful."
+
+## Batch 3: Sticky Safety Summary + Visual Grouping
+
+Make safety and identity visible at all times on the agent profile.
+
+- Add a persistent **Safety Summary rail** to the left sidebar of `AgentProfilePage.tsx` (below the section nav, above actions). Shows: local/cloud, manual/background, internet access, approval required, trust level — always visible regardless of active tab
+- Add **"Recommended" / "Safe default" / "Advanced"** badges on:
+  - Model selection (smartness level)
+  - Schedule presets
+  - Permission presets (add Safe / Balanced / Advanced presets to Tools section)
+  - Background mode
+- Add a visible **"Safe vs Advanced"** divider: sections Overview through Rules labeled as "Essentials", Schedule through Advanced labeled with a subtle "Advanced" header and "Most people won't need this" note
+- Add trust language inline: "Stored locally", "Cloud-backed", "Needs review before background use", "No exposed secrets detected" as small badges/tags on relevant fields
+
+## Batch 4: Tactile Memory + Rules
+
+Make Memory and Rules sections feel like organizing cards.
+
+**Memory enhancements:**
+- Add icons per category (heart for preference, lightbulb for fact, bookmark for context, sticky-note for note)
+- Add `pinned` field to `MemoryItem` type; pinned items float to top with a pin icon
+- Quick-add chips below the add form: "User preference", "Important fact", "Safety rule" — clicking pre-fills category and placeholder
+- Richer card design with subtle left-border color by category
+
+**Rules enhancements:**
+- Add `order` field to `RuleItem`; up/down arrow buttons to reorder
+- Group rules visually by priority: Safety rules first (green border), then Preferences (blue), then Hard Rules (red)
+- Quick-add chips: "Never do...", "Always ask before...", "Prefer..."
+
+## Batch 5: Run Detail + Templates + List Polish
+
+**Run detail drawer** (`RunDetailDrawer.tsx` — new component using Sheet):
+- What was asked (input)
+- What happened (plain-English summary)
+- What the agent returned (expandable output)
+- Whether anything was blocked/redacted
+- Whether approval was needed
+- Model/runtime used
+- Status lifecycle: Queued, Running, Succeeded, Failed, Cancelled
+- Timestamps + duration
+- Retry button
+- Clickable from Activity section and AgentsPage
+
+**Template chooser enhancement** in `TemplatesPage.tsx`:
+- Add outcome-focused descriptions: "Research Assistant — Finds sources, compares options, and summarizes clearly"
+- Add "Good for" tags on each template
+
+**Agent list polish** in `AgentsPage.tsx`:
+- Add filters: "Background", "Never run", "Not configured"
+- Add sort dropdown: name, last run, status
+- Add enable/disable toggle directly on cards
+- Add "Run now" button on cards
+- Add "why flagged" hint text on attention cards
+- Empty states per filter: "No background agents", "No cloud agents"
+
+## Batch 6: Onboarding + Trust Center + State Coverage
+
+**Onboarding expansion** in `OnboardingPage.tsx`:
+- Add setup checklist step with real state detection
+- Add explicit connection states: demo mode, local-only, cloud configured
+- Persist setup progress to localStorage
+
+**Trust Center completion** in `TrustCenterPage.tsx`:
+- Overall status badge: Safe / Needs review / At risk
+- Per-agent safety summary cards (reuse SafetySummaryCard)
+- Visual severity levels: informational (blue), review (amber), risky (red)
+- Trust language: "No exposed secrets detected", "All agents use local models"
+
+**Global state coverage:**
+- Add loading skeleton component
+- Add error state with retry for all data-fetching screens
+- Add unsaved changes indicator to EditableField (already partially there)
+- Add destructive confirmation dialog for agent deletion
 
 ---
 
-## Design Details
+## Files Impacted
 
-**Safety badge colors** (reuse existing status token patterns):
-- Safe: `bg-status-working/15 text-status-working` (green)
-- Review recommended: `bg-status-waiting/15 text-status-waiting` (amber)
-- Advanced: `bg-destructive/15 text-destructive` (red)
-
-**Card hover:** subtle border-primary/40 + shadow, matching TemplatesPage pattern
-
-**Empty connected state:** "No plugins connected yet — start with one of our recommendations above"
-
-**Trust language sprinkled throughout:**
-- "Keys are stored locally on your device"
-- "Your data stays on your machine"
-- "Approval required before agents can act"
-- "Read-only unless you allow writing"
+| File | Changes |
+|------|---------|
+| `src/pages/FrontDeskPage.tsx` | Major rewrite — checklist, recent changes, suggested actions |
+| `src/pages/AgentProfilePage.tsx` | Heavy — empty states, microcopy, safety rail, memory/rules enhancements, recommended badges, safe/advanced divider |
+| `src/types/agent.ts` | Add `pinned` to MemoryItem, `order` to RuleItem |
+| `src/components/RunDetailDrawer.tsx` | New — sheet-based run detail view |
+| `src/pages/AgentsPage.tsx` | Filters, sort, inline actions, empty states |
+| `src/pages/TemplatesPage.tsx` | Outcome descriptions, "Good for" tags |
+| `src/pages/OnboardingPage.tsx` | Setup states, checklist |
+| `src/pages/TrustCenterPage.tsx` | Overall badge, severity colors, agent cards |
+| `src/services/mockApi.ts` | Extend with recent events query |
 
 ---
 
-## File Summary
+## Execution Order
 
-| File | Action |
-|------|--------|
-| `src/types/plugin.ts` | Create |
-| `src/data/plugins.ts` | Create |
-| `src/pages/PluginsPage.tsx` | Create |
-| `src/components/plugins/PluginDetailDrawer.tsx` | Create |
-| `src/components/plugins/PluginSetupFlow.tsx` | Create |
-| `src/App.tsx` | Add route |
-| `src/components/AppSidebar.tsx` | Add nav item |
+1. Batch 2 (empty states + microcopy) — highest UX impact, lowest risk
+2. Batch 3 (safety summary + recommended badges) — builds confidence
+3. Batch 4 (tactile memory + rules) — makes core editing satisfying
+4. Batch 1 (Front Desk upgrade) — command center
+5. Batch 5 (run detail + templates + list) — depth
+6. Batch 6 (onboarding + trust + state coverage) — polish
+
+This is roughly 6 implementation sessions. Shall I start with Batch 2?
 

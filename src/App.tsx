@@ -39,10 +39,10 @@ const AppRoutes = () => (
     <Route path="/activity" element={<AppLayout><ActivityPage /></AppLayout>} />
     <Route path="/audit" element={<AppLayout><AuditPage /></AppLayout>} />
     <Route path="/templates" element={<AppLayout><TemplatesPage /></AppLayout>} />
+    <Route path="/plugins" element={<AppLayout><PluginsPage /></AppLayout>} />
     <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
     <Route path="/trust" element={<AppLayout><TrustCenterPage /></AppLayout>} />
     <Route path="/create-agent" element={<AppLayout><CreateAgentPage /></AppLayout>} />
-    <Route path="/plugins" element={<AppLayout><PluginsPage /></AppLayout>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
