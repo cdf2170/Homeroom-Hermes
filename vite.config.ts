@@ -1,11 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import path from "path";
 import { fileURLToPath } from "url";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { componentTagger } from "lovable-tagger";
 
-// Resolve src dir using import.meta.url — works in both CJS and ESM environments
-const srcDir = fileURLToPath(new URL("./src", import.meta.url));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), tsconfigPaths(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
-      "@": srcDir,
+      "@": path.resolve(__dirname, "./src"),
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
