@@ -33,14 +33,19 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react-swc": "^4.3.0",
+    "autoprefixer": "^10.4.27",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
+    "postcss": "^8.5.9",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.0",
     "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.2",
     "tailwindcss-animate": "^1.0.7",
+    "vite": "^8.0.8",
     "zustand": "^5.0.12"
   }
 }
