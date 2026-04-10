@@ -8,8 +8,14 @@ import {
   AlertTriangle, Pencil, Check, Plus, X, ChevronDown, ChevronUp,
   BookOpen, Wrench, Database, Users, RefreshCw, Copy, Rocket,
   Heart, Lightbulb, Bookmark, StickyNote, Pin, CheckCircle2, XCircle,
+  MessageSquare, Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
