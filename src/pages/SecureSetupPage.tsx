@@ -616,8 +616,8 @@ const SecureSetupPage: React.FC = () => {
                     </div>
                     {connected ? (
                       <div className="flex items-center gap-1 text-status-working">
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span className="text-xs font-medium">Connected</span>
+                        <BadgeCheck className="w-4 h-4" />
+                        <span className="text-xs font-medium">Verified & encrypted</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-muted-foreground">
