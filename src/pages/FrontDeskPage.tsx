@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import {
   Building2, Users, AlertTriangle, ArrowRight, Sparkles, Shield,
   RefreshCw, HelpCircle, Settings, Plus, CheckCircle2, Info,
-  Cpu, Cloud, Zap, Clock,
+  Cpu, Cloud, Zap, Clock, ClipboardCheck,
 } from 'lucide-react';
 import api from '@/services/mockApi';
+import { getPendingCount } from '@/store/approvalStore';
 
 const FrontDeskPage: React.FC = () => {
   const agents = api.useAgents();
@@ -97,9 +98,10 @@ const FrontDeskPage: React.FC = () => {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <StatCard icon={Users} label="Agents" value={summaries.length} onClick={() => navigate('/agents')} />
         <StatCard icon={Zap} label="Active" value={active.length} accent={active.length > 0 ? 'working' : undefined} onClick={() => navigate('/agents?filter=active')} />
+        <StatCard icon={ClipboardCheck} label="Approvals" value={getPendingCount()} accent={getPendingCount() > 0 ? 'attention' : undefined} onClick={() => navigate('/approvals')} />
         <StatCard icon={AlertTriangle} label="Attention" value={attention.length} accent={attention.length > 0 ? 'attention' : undefined} onClick={() => navigate('/agents?filter=attention')} />
         <StatCard icon={Shield} label="Issues" value={reviewFindings.length} accent={reviewFindings.length > 0 ? 'attention' : undefined} onClick={() => navigate('/trust')} />
       </div>
