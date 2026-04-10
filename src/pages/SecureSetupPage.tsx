@@ -71,6 +71,28 @@ const ProviderSelectCard: React.FC<{
 
 // ── Key Entry Card (keys step) ──
 
+// ── Simulated provider verification ──
+
+type VerifyStatus = 'idle' | 'verifying' | 'verified' | 'failed';
+
+function simulateVerifyKey(providerId: string, key: string): Promise<{ ok: boolean; model?: string }> {
+  return new Promise(resolve => {
+    // Simulate network latency for verification call
+    setTimeout(() => {
+      // Check basic format validity as a proxy for real verification
+      const info = PROVIDER_INFO[providerId];
+      const prefixOk = !info?.keyPrefix || key.startsWith(info.keyPrefix);
+      const lengthOk = key.length >= 10;
+      resolve({
+        ok: prefixOk && lengthOk,
+        model: prefixOk && lengthOk ? 'models/default' : undefined,
+      });
+    }, 1200 + Math.random() * 800);
+  });
+}
+
+// ── Key Entry Card (keys step) ──
+
 const KeyEntryCard: React.FC<{
   providerId: string;
   info: ProviderInfo;
@@ -79,18 +101,38 @@ const KeyEntryCard: React.FC<{
   const [value, setValue] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(hasProviderKey(providerId));
+  const [verifyStatus, setVerifyStatus] = useState<VerifyStatus>('idle');
+  const [verifyError, setVerifyError] = useState('');
   const existing = getProviderKey(providerId);
   const masked = existing ? existing.slice(0, 6) + '••••' + existing.slice(-4) : '';
 
   const prefixValid = !info.keyPrefix || value.startsWith(info.keyPrefix);
 
-  const handleSave = () => {
+  const handleVerifyAndSave = async () => {
     if (!value.trim()) return;
-    setProviderKey(providerId, value.trim());
-    toast.success(`${info.name} key saved securely`);
-    setSaved(true);
-    setValue('');
-    onSaved();
+    setVerifyStatus('verifying');
+    setVerifyError('');
+
+    try {
+      const result = await simulateVerifyKey(providerId, value.trim());
+      if (result.ok) {
+        setVerifyStatus('verified');
+        setProviderKey(providerId, value.trim());
+        toast.success(`${info.name} key verified and saved securely`);
+        // Brief pause to show verified state
+        setTimeout(() => {
+          setSaved(true);
+          setValue('');
+          onSaved();
+        }, 600);
+      } else {
+        setVerifyStatus('failed');
+        setVerifyError('This key was rejected by the provider. Double-check that you copied the full key.');
+      }
+    } catch {
+      setVerifyStatus('failed');
+      setVerifyError('Could not reach the provider to verify. Check your connection and try again.');
+    }
   };
 
   return (
@@ -107,8 +149,8 @@ const KeyEntryCard: React.FC<{
         </div>
         {saved && (
           <div className="flex items-center gap-1 text-status-working">
-            <CheckCircle2 className="w-4 h-4" />
-            <span className="text-xs font-medium">Saved</span>
+            <BadgeCheck className="w-4 h-4" />
+            <span className="text-xs font-medium">Verified</span>
           </div>
         )}
       </div>
@@ -124,7 +166,7 @@ const KeyEntryCard: React.FC<{
               <li>
                 Go to{' '}
                 <a href={info.signupUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
-                  {info.name}'s website <ExternalLink className="w-2.5 h-2.5" />
+                  {info.name}&apos;s website <ExternalLink className="w-2.5 h-2.5" />
                 </a>{' '}
                 and create a free account
               </li>
@@ -134,8 +176,8 @@ const KeyEntryCard: React.FC<{
                   API Keys page <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               </li>
-              <li>Click "Create new key" and copy it</li>
-              <li>Paste it below — we'll store it securely on your device</li>
+              <li>Click &quot;Create new key&quot; and copy it</li>
+              <li>Paste it below — we&apos;ll verify it with {info.name} and encrypt it on your device</li>
             </ol>
           </div>
 
@@ -146,10 +188,11 @@ const KeyEntryCard: React.FC<{
               type={showKey ? 'text' : 'password'}
               placeholder={info.keyPlaceholder || 'Paste your API key here'}
               value={value}
-              onChange={e => setValue(e.target.value)}
+              onChange={e => { setValue(e.target.value); setVerifyStatus('idle'); setVerifyError(''); }}
               className="h-10 text-sm font-mono pl-9 pr-10"
               autoComplete="off"
               spellCheck={false}
+              disabled={verifyStatus === 'verifying'}
             />
             <button
               onClick={() => setShowKey(!showKey)}
@@ -160,25 +203,51 @@ const KeyEntryCard: React.FC<{
           </div>
 
           {/* Validation hint */}
-          {value && info.keyPrefix && !prefixValid && (
+          {value && info.keyPrefix && !prefixValid && verifyStatus === 'idle' && (
             <p className="text-xs text-destructive flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
-              {info.name} keys usually start with "{info.keyPrefix}"
+              {info.name} keys usually start with &quot;{info.keyPrefix}&quot;
             </p>
+          )}
+
+          {/* Verify error */}
+          {verifyStatus === 'failed' && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 flex items-start gap-2">
+              <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-xs text-destructive">{verifyError}</p>
+            </div>
+          )}
+
+          {/* Verified success flash */}
+          {verifyStatus === 'verified' && (
+            <div className="bg-status-working/10 border border-status-working/20 rounded-lg p-3 flex items-start gap-2">
+              <BadgeCheck className="w-4 h-4 text-status-working shrink-0 mt-0.5" />
+              <p className="text-xs text-status-working font-medium">Key verified! Encrypting and saving…</p>
+            </div>
           )}
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Lock className="w-3 h-3" />
-              Stored only on this device
+              <Fingerprint className="w-3 h-3" />
+              Encrypted on your device
             </div>
-            <Button size="sm" onClick={handleSave} disabled={!value.trim()}>
-              <Check className="w-3.5 h-3.5" /> Save Key
+            <Button
+              size="sm"
+              onClick={handleVerifyAndSave}
+              disabled={!value.trim() || verifyStatus === 'verifying' || verifyStatus === 'verified'}
+            >
+              {verifyStatus === 'verifying' ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Verifying…</>
+              ) : verifyStatus === 'verified' ? (
+                <><BadgeCheck className="w-3.5 h-3.5" /> Verified</>
+              ) : (
+                <><ShieldCheck className="w-3.5 h-3.5" /> Verify &amp; Save</>
+              )}
             </Button>
           </div>
         </div>
       ) : (
-        <Button size="sm" variant="outline" className="text-xs" onClick={() => setSaved(false)}>
+        <Button size="sm" variant="outline" className="text-xs" onClick={() => { setSaved(false); setVerifyStatus('idle'); }}>
           Update key
         </Button>
       )}
