@@ -221,6 +221,7 @@ const ApprovalsPage: React.FC = () => {
           </div>
         )}
       </div>
+      </StateCoverage>
 
       {/* Review Dialog */}
       <Dialog open={!!reviewingRequest} onOpenChange={open => { if (!open) setReviewingId(null); }}>
