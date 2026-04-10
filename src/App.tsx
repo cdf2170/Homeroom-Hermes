@@ -16,6 +16,7 @@ import TrustCenterPage from "./pages/TrustCenterPage";
 import CreateAgentPage from "./pages/CreateAgentPage";
 import FrontDeskPage from "./pages/FrontDeskPage";
 import PluginsPage from "./pages/PluginsPage";
+import ApprovalsPage from "./pages/ApprovalsPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<AppLayout><HomePage /></AppLayout>} />
     <Route path="/front-desk" element={<AppLayout><FrontDeskPage /></AppLayout>} />
+    <Route path="/approvals" element={<AppLayout><ApprovalsPage /></AppLayout>} />
     <Route path="/office" element={<AppLayout><OfficePage /></AppLayout>} />
     <Route path="/agents" element={<AppLayout><AgentsPage /></AppLayout>} />
     <Route path="/agents/:id" element={<AppLayout><AgentProfilePage /></AppLayout>} />
