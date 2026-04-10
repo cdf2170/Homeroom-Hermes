@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => ({
       "react-dom",
       "react-router-dom",
       "@tanstack/react-query",
+      "@tanstack/query-core",
     ],
   },
 }));
