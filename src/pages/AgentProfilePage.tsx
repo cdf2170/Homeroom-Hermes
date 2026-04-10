@@ -7,6 +7,7 @@ import {
   Settings, Play, Pause, Trash2, Power, PowerOff, Cpu, Cloud, Zap, Target,
   AlertTriangle, Pencil, Check, Plus, X, ChevronDown, ChevronUp,
   BookOpen, Wrench, Database, Users, RefreshCw, Copy, Rocket,
+  Heart, Lightbulb, Bookmark, StickyNote, Pin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -466,10 +467,24 @@ const PersonalitySection = ({ agent }: { agent: Agent }) => {
 // MEMORY
 // ═══════════════════════════════
 
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  preference: Heart,
+  context: Bookmark,
+  fact: Lightbulb,
+  note: StickyNote,
+};
+
 const MemorySection = ({ agent }: { agent: Agent }) => {
   const [newContent, setNewContent] = useState('');
   const [newCategory, setNewCategory] = useState<MemoryItem['category']>('note');
   const items = agent.memoryItems || [];
+
+  // Pinned items float to top
+  const sortedItems = [...items].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
 
   const addItem = () => {
     if (!newContent.trim()) return;
@@ -477,6 +492,7 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
       id: `mem-${Date.now()}`,
       content: newContent.trim(),
       category: newCategory,
+      pinned: false,
       createdAt: new Date(),
     };
     updateAgent(agent.id, { memoryItems: [...items, item] });
@@ -489,6 +505,10 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
     toast.success('Memory removed');
   };
 
+  const togglePin = (itemId: string) => {
+    updateAgent(agent.id, { memoryItems: items.map(i => i.id === itemId ? { ...i, pinned: !i.pinned } : i) });
+  };
+
   const categoryColor: Record<string, string> = {
     preference: 'bg-primary/10 text-primary',
     context: 'bg-secondary/10 text-secondary',
@@ -498,7 +518,7 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Brain} title="Memory" desc="What this agent should remember over time" />
+      <SectionHeader icon={Brain} title="Memory" desc="Memories help this agent remember things between conversations" />
 
       <div className="p-3 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground">
@@ -518,17 +538,21 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
         />
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5">
-            {(['preference', 'context', 'fact', 'note'] as const).map(c => (
-              <button
-                key={c}
-                onClick={() => setNewCategory(c)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-medium capitalize transition-colors ${
-                  newCategory === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                {c}
-              </button>
-            ))}
+            {(['preference', 'context', 'fact', 'note'] as const).map(c => {
+              const CatIcon = CATEGORY_ICONS[c];
+              return (
+                <button
+                  key={c}
+                  onClick={() => setNewCategory(c)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium capitalize transition-colors flex items-center gap-1 ${
+                    newCategory === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  <CatIcon className="w-3 h-3" />
+                  {c}
+                </button>
+              );
+            })}
           </div>
           <Button size="sm" onClick={addItem} disabled={!newContent.trim()} className="text-xs h-7">
             <Plus className="w-3 h-3" /> Add
@@ -538,23 +562,32 @@ const MemorySection = ({ agent }: { agent: Agent }) => {
 
       {/* Memory items */}
       <div className="space-y-2">
-        {items.map(item => (
-          <div key={item.id} className="flex items-start gap-3 p-3 bg-card border border-border rounded-xl group">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-foreground">{item.content}</p>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${categoryColor[item.category]}`}>{item.category}</span>
-                <span className="text-[10px] text-muted-foreground">{timeAgo(item.createdAt)}</span>
+        {sortedItems.map(item => {
+          const CatIcon = CATEGORY_ICONS[item.category] || StickyNote;
+          return (
+            <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border rounded-xl group transition-all ${item.pinned ? 'border-primary/30 bg-primary/5' : 'border-border'}`}>
+              <div className="mt-0.5 shrink-0">
+                <CatIcon className={`w-4 h-4 ${item.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-foreground">{item.content}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${categoryColor[item.category]}`}>{item.category}</span>
+                  <span className="text-[10px] text-muted-foreground">{timeAgo(item.createdAt)}</span>
+                  {item.pinned && <span className="text-[10px] text-primary font-medium flex items-center gap-0.5"><Pin className="w-2.5 h-2.5" /> Pinned</span>}
+                </div>
+              </div>
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => togglePin(item.id)} className={`p-1 rounded transition-colors ${item.pinned ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}>
+                  <Pin className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive p-1">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => removeItem(item.id)}
-              className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
+          );
+        })}
         {items.length === 0 && (
           <div className="text-center py-10 border border-dashed border-border rounded-xl px-6">
             <Brain className="w-8 h-8 mx-auto text-muted-foreground/60 mb-3" />
@@ -605,6 +638,14 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
   const [newPriority, setNewPriority] = useState<RulePriority>('preference');
   const items = agent.ruleItems || [];
 
+  // Group by priority: hard-rule first, then safe, then preference
+  const priorityOrder: Record<RulePriority, number> = { 'hard-rule': 0, safe: 1, preference: 2 };
+  const sortedItems = [...items].sort((a, b) => {
+    const po = priorityOrder[a.priority] - priorityOrder[b.priority];
+    if (po !== 0) return po;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+
   const addItem = () => {
     if (!newContent.trim()) return;
     const item: RuleItem = {
@@ -612,6 +653,7 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
       content: newContent.trim(),
       priority: newPriority,
       enabled: true,
+      order: items.length,
     };
     updateAgent(agent.id, { ruleItems: [...items, item] });
     setNewContent('');
@@ -627,6 +669,12 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
     updateAgent(agent.id, { ruleItems: items.map(i => i.id === itemId ? { ...i, enabled: !i.enabled } : i) });
   };
 
+  const priorityBorderColor: Record<RulePriority, string> = {
+    safe: 'border-l-[hsl(var(--status-working))]',
+    preference: 'border-l-primary',
+    'hard-rule': 'border-l-destructive',
+  };
+
   const priorityColor: Record<RulePriority, string> = {
     safe: 'bg-status-working/10 text-status-working',
     preference: 'bg-primary/10 text-primary',
@@ -639,9 +687,21 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
     'hard-rule': 'Hard Rule',
   };
 
+  // Group items for section headers
+  const groups: { priority: RulePriority; items: typeof sortedItems }[] = [];
+  let lastPriority: RulePriority | null = null;
+  for (const item of sortedItems) {
+    if (item.priority !== lastPriority) {
+      groups.push({ priority: item.priority, items: [item] });
+      lastPriority = item.priority;
+    } else {
+      groups[groups.length - 1].items.push(item);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Shield} title="Rules & Boundaries" desc="Explicit rules and guardrails this agent must follow" />
+      <SectionHeader icon={Shield} title="Rules & Boundaries" desc="Rules are hard limits this agent will always follow" />
 
       <div className="p-3 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground">
@@ -679,21 +739,32 @@ const RulesSection = ({ agent }: { agent: Agent }) => {
         </div>
       </div>
 
-      {/* Rule items */}
-      <div className="space-y-2">
-        {items.map(item => (
-          <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border rounded-xl group transition-opacity ${item.enabled ? 'border-border' : 'border-border/50 opacity-60'}`}>
-            <Switch checked={item.enabled} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm ${item.enabled ? 'text-foreground' : 'text-muted-foreground line-through'}`}>{item.content}</p>
-              <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full mt-1.5 inline-block ${priorityColor[item.priority]}`}>{priorityLabel[item.priority]}</span>
+      {/* Rule items grouped by priority */}
+      <div className="space-y-4">
+        {groups.map(group => (
+          <div key={group.priority}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${
+              group.priority === 'hard-rule' ? 'text-destructive' : group.priority === 'safe' ? 'text-status-working' : 'text-primary'
+            }`}>
+              {priorityLabel[group.priority]}s ({group.items.length})
+            </p>
+            <div className="space-y-1.5">
+              {group.items.map(item => (
+                <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border border-border border-l-4 ${priorityBorderColor[item.priority]} rounded-xl group transition-opacity ${!item.enabled ? 'opacity-60' : ''}`}>
+                  <Switch checked={item.enabled} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${item.enabled ? 'text-foreground' : 'text-muted-foreground line-through'}`}>{item.content}</p>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full mt-1.5 inline-block ${priorityColor[item.priority]}`}>{priorityLabel[item.priority]}</span>
+                  </div>
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
-            <button
-              onClick={() => removeItem(item.id)}
-              className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
           </div>
         ))}
         {items.length === 0 && (
