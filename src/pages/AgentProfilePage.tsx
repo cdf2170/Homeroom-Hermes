@@ -7,6 +7,7 @@ import {
   Settings, Play, Pause, Trash2, Power, PowerOff, Cpu, Cloud, Zap, Target,
   AlertTriangle, Pencil, Check, Plus, X, ChevronDown, ChevronUp,
   BookOpen, Wrench, Database, Users, RefreshCw, Copy, Rocket,
+  Heart, Lightbulb, Bookmark, StickyNote, Pin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
