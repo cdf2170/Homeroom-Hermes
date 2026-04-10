@@ -1,8 +1,6 @@
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
     "lib": [
@@ -14,7 +12,8 @@
     "moduleDetection": "force",
     "moduleResolution": "bundler",
     "noEmit": true,
-    "noFallthroughCasesInSwitch": true,
+    "noFallthroughCasesInSwitch": false,
+    "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
@@ -23,16 +22,13 @@
       ]
     },
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
     "target": "ES2020",
+    "types": [
+      "vitest/globals"
+    ],
     "useDefineForClassFields": true
   },
-  "exclude": [
-    "node_modules",
-    "apps",
-    "packages",
-    "tooling"
-  ],
   "include": [
     "src"
   ]

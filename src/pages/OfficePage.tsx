@@ -1,107 +1,83 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Bot, Plus, Shield, Eye, HelpCircle, Monitor, Cloud } from "lucide-react";
-import { useAgentStore } from "@/store/agent-store";
-import { MOCK_AGENTS } from "@/data/mock-data";
+import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import OfficeFloor from '@/components/office/OfficeFloor';
+import AgentInspector from '@/components/office/AgentInspector';
+import WelcomeModal from '@/components/office/WelcomeModal';
+import { useAgents } from '@/store/agentStore';
+import { useAgentSimulation } from '@/hooks/useAgentSimulation';
 
-const ROOMS: Record<string, { label: string; desc: string; color: string }> = {
-  focus_room: { label: "Work Area", desc: "Actively working on tasks", color: "bg-status-working/20" },
-  break_room: { label: "Break Room", desc: "Taking a break", color: "bg-status-break/20" },
-  help_desk: { label: "Help Desk", desc: "Waiting for your input", color: "bg-status-waiting/20" },
-  automation_room: { label: "Automation Hub", desc: "Running scheduled tasks", color: "bg-primary/10" },
-  local_compute_room: { label: "Local Room", desc: "Runs on your device", color: "bg-muted" },
-  cloud_room: { label: "Cloud Room", desc: "Using online AI models", color: "bg-window/20" },
-  lounge: { label: "Lounge", desc: "Resting or sleeping", color: "bg-status-sleeping/20" },
-};
+const OfficePage: React.FC = () => {
+  const agents = useAgents();
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const selectedAgent = agents.find(a => a.id === selectedAgentId) || null;
 
-export default function OfficePage() {
-  const { agents, setAgents } = useAgentStore();
-  const navigate = useNavigate();
+  // Start the agent behavior simulation
+  useAgentSimulation();
 
-  useEffect(() => {
-    if (agents.length === 0) setAgents(MOCK_AGENTS);
-  }, []);
+  React.useEffect(() => {
+    if (selectedAgentId && !agents.find(a => a.id === selectedAgentId)) {
+      setSelectedAgentId(null);
+    }
+  }, [agents, selectedAgentId]);
 
-  const roomGroups = Object.entries(ROOMS).map(([id, room]) => ({
-    ...room,
-    id,
-    agents: agents.filter((a) => a.sceneRoomId === id),
-  }));
+  const workingCount = agents.filter(a => a.state === 'working').length;
+  const waitingCount = agents.filter(a => a.state === 'waiting' || a.state === 'needs-attention').length;
+  const breakCount = agents.filter(a => a.state === 'on-break').length;
+  const idleCount = agents.filter(a => a.state === 'idle').length;
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display font-bold">Live Office</h1>
-          <p className="text-muted-foreground mt-0.5">See where your agents are and what they're doing.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate("/safety")}>
-            <Shield className="h-3.5 w-3.5 mr-1" /> Safety
-          </Button>
-          <Button size="sm" onClick={() => navigate("/create")}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Create Agent
-          </Button>
-        </div>
-      </div>
+    <div className="h-full flex flex-col relative">
+      <WelcomeModal />
 
-      {/* Room legend */}
-      <Card className="p-4">
-        <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Room Guide</p>
-        <div className="flex flex-wrap gap-3">
-          {Object.entries(ROOMS).map(([id, room]) => (
-            <div key={id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <div className={`h-3 w-3 rounded ${room.color}`} />
-              <span>{room.label}</span>
+      {/* Top HUD bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50 backdrop-blur-sm shrink-0">
+        <div>
+          <h1 className="font-display font-bold text-lg text-foreground">The Office</h1>
+          <p className="text-xs text-muted-foreground">
+            {agents.length} agent{agents.length !== 1 ? 's' : ''} • {workingCount} working
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {[
+            { label: 'Working', count: workingCount, color: 'bg-status-working' },
+            { label: 'Idle', count: idleCount, color: 'bg-status-idle' },
+            { label: 'Waiting', count: waitingCount, color: 'bg-status-waiting' },
+            { label: 'Break', count: breakCount, color: 'bg-status-break' },
+          ].filter(s => s.count > 0).map(s => (
+            <div key={s.label} className="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-full text-xs font-medium text-foreground">
+              <span className={`w-2 h-2 rounded-full ${s.color}`} />
+              {s.count} {s.label}
             </div>
           ))}
         </div>
-      </Card>
+      </div>
 
-      {/* Office grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {roomGroups.map((room) => (
-          <Card key={room.id} className={`p-4 ${room.color} border`}>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">{room.label}</h3>
-              <Tooltip>
-                <TooltipTrigger>
-                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent>{room.desc}</TooltipContent>
-              </Tooltip>
-            </div>
-            {room.agents.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic py-3">Empty</p>
-            ) : (
-              <div className="space-y-2">
-                {room.agents.map((agent) => (
-                  <button
-                    key={agent.id}
-                    onClick={() => navigate(`/agents/${agent.id}`)}
-                    className="flex items-center gap-2 w-full p-2 rounded-lg bg-background/60 hover:bg-background transition-colors text-left"
-                  >
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Bot className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium truncate">{agent.name}</p>
-                      <p className="text-[10px] text-muted-foreground capitalize">{agent.status.replace(/_/g, " ")}</p>
-                    </div>
-                    <Badge variant="outline" className="text-[10px] gap-0.5">
-                      {agent.runtimeMode === "local" ? <Monitor className="h-2.5 w-2.5" /> : <Cloud className="h-2.5 w-2.5" />}
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            )}
-          </Card>
-        ))}
+      {/* Office scene + inspector */}
+      <div className="flex-1 flex min-h-0">
+        <div className="flex-1 p-2 min-h-0">
+          <OfficeFloor
+            agents={agents}
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={setSelectedAgentId}
+          />
+        </div>
+
+        <AnimatePresence>
+          {selectedAgent && (
+            <motion.div
+              className="agent-inspector shrink-0 p-2 pr-1"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <AgentInspector agent={selectedAgent} onClose={() => setSelectedAgentId(null)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
-}
+};
+
+export default OfficePage;

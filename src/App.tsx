@@ -1,37 +1,62 @@
-import { Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import AppLayout from "@/components/AppLayout";
-import HomePage from "@/pages/HomePage";
-import CreateAgentPage from "@/pages/CreateAgentPage";
-import AgentsPage from "@/pages/AgentsPage";
-import AgentProfilePage from "@/pages/AgentProfilePage";
-import OfficePage from "@/pages/OfficePage";
-import ActivityPage from "@/pages/ActivityPage";
-import SafetyPage from "@/pages/SafetyPage";
-import ConnectionsPage from "@/pages/ConnectionsPage";
-import SettingsPage from "@/pages/SettingsPage";
-import OnboardingFlow from "@/components/OnboardingFlow";
-import { useOnboardingStore } from "@/store/onboarding-store";
+import AppSidebar from "@/components/AppSidebar";
+import HomePage from "./pages/HomePage";
+import OfficePage from "./pages/OfficePage";
+import AgentsPage from "./pages/AgentsPage";
+import AgentProfilePage from "./pages/AgentProfilePage";
+import ActivityPage from "./pages/ActivityPage";
+import AuditPage from "./pages/AuditPage";
+import TemplatesPage from "./pages/TemplatesPage";
+import SettingsPage from "./pages/SettingsPage";
+import TrustCenterPage from "./pages/TrustCenterPage";
+import CreateAgentPage from "./pages/CreateAgentPage";
+import FrontDeskPage from "./pages/FrontDeskPage";
+import PluginsPage from "./pages/PluginsPage";
+import NotFound from "./pages/NotFound.tsx";
 
-export default function App() {
-  const { completed } = useOnboardingStore();
+const queryClient = new QueryClient();
 
-  return (
+const AppLayout = ({ children }: { children: React.ReactNode }) => (
+  <div className="min-h-screen flex w-full">
+    <AppSidebar />
+    <main className="flex-1 min-h-screen overflow-auto">
+      {children}
+    </main>
+  </div>
+);
+
+const AppRoutes = () => (
+  <Routes>
+    <Route path="/" element={<AppLayout><HomePage /></AppLayout>} />
+    <Route path="/front-desk" element={<AppLayout><FrontDeskPage /></AppLayout>} />
+    <Route path="/office" element={<AppLayout><OfficePage /></AppLayout>} />
+    <Route path="/agents" element={<AppLayout><AgentsPage /></AppLayout>} />
+    <Route path="/agents/:id" element={<AppLayout><AgentProfilePage /></AppLayout>} />
+    <Route path="/activity" element={<AppLayout><ActivityPage /></AppLayout>} />
+    <Route path="/audit" element={<AppLayout><AuditPage /></AppLayout>} />
+    <Route path="/templates" element={<AppLayout><TemplatesPage /></AppLayout>} />
+    <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+    <Route path="/trust" element={<AppLayout><TrustCenterPage /></AppLayout>} />
+    <Route path="/create-agent" element={<AppLayout><CreateAgentPage /></AppLayout>} />
+    <Route path="/plugins" element={<AppLayout><PluginsPage /></AppLayout>} />
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+);
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      {!completed && <OnboardingFlow />}
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/create" element={<CreateAgentPage />} />
-          <Route path="/agents" element={<AgentsPage />} />
-          <Route path="/agents/:id" element={<AgentProfilePage />} />
-          <Route path="/office" element={<OfficePage />} />
-          <Route path="/activity" element={<ActivityPage />} />
-          <Route path="/safety" element={<SafetyPage />} />
-          <Route path="/connections" element={<ConnectionsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
     </TooltipProvider>
-  );
-}
+  </QueryClientProvider>
+);
+
+export default App;

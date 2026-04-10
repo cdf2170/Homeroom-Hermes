@@ -1,109 +1,57 @@
-import {
-  Home,
-  PlusCircle,
-  Users,
-  Building2,
-  Activity,
-  Shield,
-  Plug,
-  Settings,
-} from "lucide-react";
-import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarFooter,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import React from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { Home, Building2, Users, Activity, LayoutTemplate, Settings, ShieldCheck, ConciergeBell, Plug } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-const mainNav = [
-  { title: "Home", url: "/", icon: Home },
-  { title: "Agents", url: "/agents", icon: Users },
-  { title: "Live Office", url: "/office", icon: Building2 },
-  { title: "Activity", url: "/activity", icon: Activity },
+const NAV_ITEMS = [
+  { to: '/', icon: Home, label: 'Home' },
+  { to: '/front-desk', icon: ConciergeBell, label: 'Front Desk' },
+  { to: '/office', icon: Building2, label: 'Office' },
+  { to: '/agents', icon: Users, label: 'Agents' },
+  { to: '/activity', icon: Activity, label: 'Activity' },
+  { to: '/trust', icon: ShieldCheck, label: 'Trust Center' },
+  { to: '/templates', icon: LayoutTemplate, label: 'Templates' },
+  { to: '/plugins', icon: Plug, label: 'Plugins' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-const systemNav = [
-  { title: "Safety", url: "/safety", icon: Shield },
-  { title: "Connections", url: "/connections", icon: Plug },
-  { title: "Settings", url: "/settings", icon: Settings },
-];
-
-export function AppSidebar() {
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
+const AppSidebar: React.FC = () => {
   const location = useLocation();
-  const isActive = (path: string) =>
-    path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarContent className="pt-4">
-        {/* Create Agent CTA */}
-        <div className="px-3 mb-2">
-          <Button asChild size={collapsed ? "icon" : "default"} className="w-full font-semibold">
-            <NavLink to="/create">
-              <PlusCircle className="h-4 w-4" />
-              {!collapsed && <span>Create Agent</span>}
-            </NavLink>
-          </Button>
-        </div>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigate</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainNav.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink to={item.url} end={item.url === "/"} className="flex items-center gap-2" activeClassName="">
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <Separator className="mx-3 my-2" />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>System</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {systemNav.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink to={item.url} className="flex items-center gap-2" activeClassName="">
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-
-      <SidebarFooter className="p-3">
-        {!collapsed && (
-          <p className="text-xs text-sidebar-foreground/50 text-center">
-            Homeroom v0.1
-          </p>
-        )}
-      </SidebarFooter>
-    </Sidebar>
+    <div className="w-14 bg-sidebar flex flex-col items-center py-4 border-r border-sidebar-border shrink-0">
+      <div className="w-9 h-9 rounded-xl bg-sidebar-primary flex items-center justify-center mb-6">
+        <span className="text-sidebar-primary-foreground font-display font-bold text-sm">H</span>
+      </div>
+      <nav className="flex flex-col gap-1 flex-1">
+        {NAV_ITEMS.map(({ to, icon: Icon, label }) => {
+          const isActive = to === '/'
+            ? location.pathname === '/'
+            : location.pathname.startsWith(to);
+          return (
+            <Tooltip key={to} delayDuration={200}>
+              <TooltipTrigger asChild>
+                <NavLink
+                  to={to}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                    isActive
+                      ? 'bg-sidebar-accent text-sidebar-primary'
+                      : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                </NavLink>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">{label}</TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </nav>
+      <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center text-sidebar-foreground text-xs font-bold">
+        Y
+      </div>
+    </div>
   );
-}
+};
+
+export default AppSidebar;

@@ -1,20 +1,7 @@
 {
   "compilerOptions": {
-    "allowImportingTsExtensions": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "lib": [
-      "ES2020",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "module": "ESNext",
-    "moduleDetection": "force",
-    "moduleResolution": "bundler",
-    "noEmit": true,
-    "noFallthroughCasesInSwitch": true,
+    "allowJs": true,
+    "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
@@ -23,17 +10,15 @@
       ]
     },
     "skipLibCheck": true,
-    "strict": true,
-    "target": "ES2020",
-    "useDefineForClassFields": true
+    "strictNullChecks": false
   },
-  "exclude": [
-    "node_modules",
-    "apps",
-    "packages",
-    "tooling"
-  ],
-  "include": [
-    "src"
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
+    }
   ]
 }
