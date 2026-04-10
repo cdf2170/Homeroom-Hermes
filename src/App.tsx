@@ -15,6 +15,7 @@ import SettingsPage from "./pages/SettingsPage";
 import TrustCenterPage from "./pages/TrustCenterPage";
 import CreateAgentPage from "./pages/CreateAgentPage";
 import FrontDeskPage from "./pages/FrontDeskPage";
+import PluginsPage from "./pages/PluginsPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const AppRoutes = () => (
     <Route path="/activity" element={<AppLayout><ActivityPage /></AppLayout>} />
     <Route path="/audit" element={<AppLayout><AuditPage /></AppLayout>} />
     <Route path="/templates" element={<AppLayout><TemplatesPage /></AppLayout>} />
+    <Route path="/plugins" element={<AppLayout><PluginsPage /></AppLayout>} />
     <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
     <Route path="/trust" element={<AppLayout><TrustCenterPage /></AppLayout>} />
     <Route path="/create-agent" element={<AppLayout><CreateAgentPage /></AppLayout>} />
