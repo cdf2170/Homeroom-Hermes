@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Building2, Users, Activity, LayoutTemplate, Settings, ShieldCheck, ConciergeBell, Plug } from 'lucide-react';
+import { Home, Building2, Users, Activity, LayoutTemplate, Settings, ShieldCheck, ConciergeBell } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const NAV_ITEMS = [
@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { to: '/activity', icon: Activity, label: 'Activity' },
   { to: '/trust', icon: ShieldCheck, label: 'Trust Center' },
   { to: '/templates', icon: LayoutTemplate, label: 'Templates' },
-  { to: '/plugins', icon: Plug, label: 'Plugins' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
