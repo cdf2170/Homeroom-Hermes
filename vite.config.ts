@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), tsconfigPaths(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
-      "@": srcDir,
+      "@": path.resolve(__dirname, "./src"),
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
