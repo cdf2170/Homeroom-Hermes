@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import AvatarPreview from '@/components/AvatarPreview';
 import {
-  X, Play, Pause, RotateCcw, Trash2, Clock, Zap, Target,
-  AlertTriangle, Shield, Cpu, Cloud, Pencil, Check, Copy,
-  Power, PowerOff, RefreshCw, Eye, ChevronDown, ChevronUp, User, Palette,
+  X, Play, Pause, Trash2, Clock, Zap, Target,
+  AlertTriangle, Shield, Cpu, Cloud, Pencil, Check,
+  Power, PowerOff, Eye, ChevronDown, ChevronUp, User, Palette,
   Brain, Lock, Activity, FileText, Sparkles, Settings, Users, Wrench,
-  Database, Info,
+  Database, Info, MessageSquare, Calendar,
 } from 'lucide-react';
 import {
   Agent, STATE_LABELS, AgentState, OfficeZone, ARCHETYPE_LABELS, VIBE_LABELS,
@@ -20,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { updateAgent, removeAgent, addAgent, getAgents } from '@/store/agentStore';
+import { updateAgent, removeAgent } from '@/store/agentStore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -510,19 +510,17 @@ const AgentInspector: React.FC<AgentInspectorProps> = ({ agent, onClose }) => {
     toast.success(`${agent.name} is now ${STATE_LABELS[state].toLowerCase()}`);
   };
 
-  const handleDuplicate = () => {
-    const clone: Agent = {
-      ...agent,
-      id: `agent-${Date.now()}`,
-      name: `${agent.name} (copy)`,
-      activities: [{ id: `act-${Date.now()}`, timestamp: new Date(), action: 'Created', detail: `Duplicated from ${agent.name}` }],
-      runs: [],
-      state: 'idle',
-      zone: 'work',
-      currentTask: null,
-    };
-    addAgent(clone);
-    toast.success(`Duplicated ${agent.name}`);
+  const handleRunNow = () => {
+    handleSetState('working');
+    setActiveTab('activity');
+  };
+
+  const openMessageComposer = () => {
+    setActiveTab('activity');
+  };
+
+  const openSchedulePanel = () => {
+    setActiveTab('behavior');
   };
 
   const handleDelete = () => {
@@ -531,18 +529,7 @@ const AgentInspector: React.FC<AgentInspectorProps> = ({ agent, onClose }) => {
     toast.success(`${agent.name} has left the office`);
   };
 
-  const handleClearState = () => {
-    updateAgent(agent.id, {
-      state: 'idle', zone: 'work', currentTask: null, lastRunStatus: null,
-      activities: [
-        { id: `act-${Date.now()}`, timestamp: new Date(), action: 'Reset', detail: 'Cleared recent context and error state' },
-        ...agent.activities,
-      ],
-    });
-    toast.success(`${agent.name} has been reset`);
-  };
-
-  const isActive = agent.state === 'working' || agent.state === 'walking';
+  const isPaused = agent.state === 'paused';
 
   return (
     <div className="w-[340px] bg-card border border-border rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[calc(100vh-5rem)]">
@@ -651,15 +638,27 @@ const AgentInspector: React.FC<AgentInspectorProps> = ({ agent, onClose }) => {
 
             <div>
               <SectionLabel>Controls</SectionLabel>
-              <div className="grid grid-cols-2 gap-1.5">
-                {isActive ? (
-                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleSetState('paused')}><Pause className="w-3 h-3" /> Pause</Button>
-                ) : (
-                  <Button size="sm" className="text-xs h-7" onClick={() => handleSetState('working')}><Play className="w-3 h-3" /> Resume</Button>
-                )}
-                <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleSetState('on-break')}><Clock className="w-3 h-3" /> Break</Button>
-                <Button size="sm" variant="outline" className="text-xs h-7" onClick={handleDuplicate}><Copy className="w-3 h-3" /> Duplicate</Button>
-                <Button size="sm" variant="outline" className="text-xs h-7" onClick={handleClearState}><RefreshCw className="w-3 h-3" /> Reset</Button>
+              <div className="space-y-1.5">
+                <Button size="sm" className="w-full text-xs h-7" onClick={handleRunNow}>
+                  <Play className="w-3 h-3" /> Run Now
+                </Button>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={openMessageComposer}>
+                    <MessageSquare className="w-3 h-3" /> Message
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={openSchedulePanel}>
+                    <Calendar className="w-3 h-3" /> Schedule
+                  </Button>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs h-7"
+                  onClick={() => handleSetState(isPaused ? 'working' : 'paused')}
+                >
+                  {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                  {isPaused ? 'Resume' : 'Pause'}
+                </Button>
               </div>
             </div>
 
