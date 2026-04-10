@@ -563,9 +563,9 @@ const SecureSetupPage: React.FC = () => {
             </div>
 
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-start gap-2">
-              <Lock className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-                Keys are saved to your browser's local storage the moment you click "Save Key". They never leave your device.
+                Each key is verified against the provider&apos;s API, then encrypted with AES-256 and stored on your device. Keys never touch our servers.
               </p>
             </div>
 
