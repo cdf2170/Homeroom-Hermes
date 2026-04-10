@@ -110,7 +110,7 @@ const AgentProfilePage: React.FC = () => {
   return (
     <div className="flex h-full min-h-0">
       {/* Left sidebar */}
-      <div className="w-56 border-r border-border bg-card/50 shrink-0 flex flex-col">
+      <div className="w-56 border-r border-border bg-card/50 shrink-0 flex flex-col overflow-hidden">
         <div className="p-4 border-b border-border">
           <button onClick={() => navigate('/agents')} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3">
             <ArrowLeft className="w-3.5 h-3.5" /> All agents
