@@ -112,7 +112,7 @@ const CreateAgentPage: React.FC = () => {
     };
     addAgent(newAgent);
     toast.success(`${name} has joined the office!`);
-    navigate('/');
+    navigate(`/agents/${newAgent.id}/welcome`);
   };
 
   const renderAvatarPreview = () => {
