@@ -65,7 +65,7 @@ const FrontDeskPage: React.FC = () => {
       {/* (StateCoverage wraps all content below) */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display font-bold text-2xl text-foreground">Front Desk</h1>
+          <h1 className="font-display font-bold text-2xl text-foreground">Home</h1>
           <p className="text-sm text-muted-foreground">Your office at a glance</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
@@ -107,7 +107,7 @@ const FrontDeskPage: React.FC = () => {
         <StatCard icon={Zap} label="Active" value={active.length} accent={active.length > 0 ? 'working' : undefined} onClick={() => navigate('/agents?filter=active')} />
         <StatCard icon={ClipboardCheck} label="Approvals" value={getPendingCount()} accent={getPendingCount() > 0 ? 'attention' : undefined} onClick={() => navigate('/approvals')} />
         <StatCard icon={AlertTriangle} label="Attention" value={attention.length} accent={attention.length > 0 ? 'attention' : undefined} onClick={() => navigate('/agents?filter=attention')} />
-        <StatCard icon={Shield} label="Issues" value={reviewFindings.length} accent={reviewFindings.length > 0 ? 'attention' : undefined} onClick={() => navigate('/trust')} />
+        <StatCard icon={Shield} label="Issues" value={reviewFindings.length} accent={reviewFindings.length > 0 ? 'attention' : undefined} onClick={() => navigate('/activity')} />
       </div>
 
       {/* Suggested actions */}
