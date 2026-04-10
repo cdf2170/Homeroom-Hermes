@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Shield, Cpu, Cloud, RefreshCw, Brain, Key, Eye, EyeOff, Trash2, Check, ExternalLink, Wand2 } from 'lucide-react';
+import { Shield, Cpu, Cloud, RefreshCw, Brain, Key, Eye, EyeOff, Trash2, Check, ExternalLink, Wand2, Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { completeOnboarding } from './OnboardingPage';
@@ -93,6 +94,39 @@ const ProviderKeyRow: React.FC<{ providerKey: string; info: typeof PROVIDER_INFO
   );
 };
 
+// ── Inline help tooltip ──
+const HelpTip: React.FC<{ text: string }> = ({ text }) => (
+  <TooltipProvider delayDuration={200}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Info className="w-3 h-3 text-muted-foreground/60 hover:text-muted-foreground cursor-help shrink-0" />
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[260px] text-xs leading-relaxed">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+// ── Setting row with rich description ──
+const SettingRow: React.FC<{
+  label: string;
+  description: string;
+  detail: string;
+  children: React.ReactNode;
+}> = ({ label, description, detail, children }) => (
+  <div className="flex items-start justify-between gap-4 py-1">
+    <div className="space-y-0.5 min-w-0">
+      <div className="flex items-center gap-1.5">
+        <Label className="text-sm font-medium">{label}</Label>
+        <HelpTip text={detail} />
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+    </div>
+    <div className="shrink-0 pt-0.5">{children}</div>
+  </div>
+);
+
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const modelConfig = useModelConfig();
@@ -105,38 +139,47 @@ const SettingsPage: React.FC = () => {
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-6">
         <h1 className="font-display font-bold text-2xl text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage your office and preferences</p>
+        <p className="text-sm text-muted-foreground">Manage how your agents work, connect, and behave</p>
       </div>
 
       <div className="space-y-8">
         {/* How agents run */}
         <section>
-          <h2 className="font-display font-semibold text-lg text-foreground mb-4 flex items-center gap-2">
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1 flex items-center gap-2">
             <Cpu className="w-4 h-4" /> How Agents Run
           </h2>
+          <p className="text-xs text-muted-foreground mb-4">Controls where and how your agents execute their tasks — on your computer or in the cloud.</p>
           <div className="space-y-4">
             <div className="p-4 bg-muted rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-sm font-medium">Connection Status</Label>
-                  <p className="text-xs text-muted-foreground">Whether your agents can do real work</p>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-sm font-medium">Connection Status</Label>
+                    <HelpTip text="This shows whether Homeroom is connected to a real AI backend. In Demo Mode, agents simulate work so you can explore the interface safely without using any credits or API calls." />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Shows whether agents are running real tasks or just previewing in demo mode</p>
                 </div>
                 <span className="px-3 py-1 bg-status-waiting/15 text-status-waiting text-xs font-medium rounded-full">Demo Mode</span>
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Always-on mode</Label>
-                <p className="text-xs text-muted-foreground">Agents work even when Homeroom is closed</p>
-              </div>
+
+            <SettingRow
+              label="Always-on mode"
+              description="When enabled, agents keep working in the background even after you close the browser tab."
+              detail="Without this, agents only run while you have Homeroom open. Turning this on means they'll continue finishing tasks, checking schedules, and responding — even while you're away."
+            >
               <Switch />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Where agents run</Label>
-                <p className="text-xs text-muted-foreground">Choose where new agents do their work</p>
+            </SettingRow>
+
+            <div className="flex items-start justify-between gap-4 py-1">
+              <div className="space-y-0.5 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-sm font-medium">Where agents run</Label>
+                  <HelpTip text="Local means agents run on your own machine — faster and more private, but requires your computer to be on. Cloud means they run on remote servers — always available, but tasks travel over the internet." />
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">Choose whether agents do their work on your computer (Local) or on remote servers (Cloud)</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <Button size="sm" variant="outline" className="text-xs h-8"><Cpu className="w-3 h-3" /> Local</Button>
                 <Button size="sm" variant="ghost" className="text-xs h-8"><Cloud className="w-3 h-3" /> Cloud</Button>
               </div>
@@ -148,9 +191,10 @@ const SettingsPage: React.FC = () => {
 
         {/* Model Setup */}
         <section>
-          <h2 className="font-display font-semibold text-lg text-foreground mb-4 flex items-center gap-2">
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1 flex items-center gap-2">
             <Brain className="w-4 h-4" /> Model Setup
           </h2>
+          <p className="text-xs text-muted-foreground mb-4">Choose which AI brain powers your agents. Different models vary in speed, cost, and capability.</p>
           {showModelWizard ? (
             <div className="mb-4">
               <ModelSetupWizard onComplete={() => setShowModelWizard(false)} />
@@ -160,8 +204,11 @@ const SettingsPage: React.FC = () => {
               <div className="p-4 bg-muted rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-foreground">{currentSetup?.name ?? 'Not configured'}</p>
-                    <p className="text-xs text-muted-foreground">Smartness: {currentPreset?.name ?? 'Balanced'}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-foreground">{currentSetup?.name ?? 'Not configured'}</p>
+                      <HelpTip text="This is the AI provider and model your agents currently use to think and respond. If not set up, agents can't do real work yet." />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Smartness: {currentPreset?.name ?? 'Balanced'} — controls how carefully agents think vs. how fast they respond</p>
                   </div>
                   <Badge variant={modelConfig.apiKey ? 'default' : 'secondary'} className="text-[10px]">
                     {modelConfig.apiKey ? 'Connected' : 'Not set up'}
@@ -179,11 +226,11 @@ const SettingsPage: React.FC = () => {
 
         {/* API Keys */}
         <section>
-          <h2 className="font-display font-semibold text-lg text-foreground mb-2 flex items-center gap-2">
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1 flex items-center gap-2">
             <Key className="w-4 h-4" /> API Keys
           </h2>
           <p className="text-xs text-muted-foreground mb-3">
-            Manage API keys for each provider. Keys are stored locally on your device.
+            API keys are like passwords that let Homeroom talk to AI providers (like OpenAI or Anthropic) on your behalf. They&apos;re stored only on your device — never sent to our servers.
           </p>
           <Button size="sm" variant="outline" className="mb-4" onClick={() => navigate('/setup')}>
             <Wand2 className="w-3.5 h-3.5" /> Guided Setup Wizard
@@ -195,26 +242,30 @@ const SettingsPage: React.FC = () => {
           </div>
         </section>
 
+        <Separator />
+
         {/* Safety */}
         <section>
-          <h2 className="font-display font-semibold text-lg text-foreground mb-4 flex items-center gap-2">
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1 flex items-center gap-2">
             <Shield className="w-4 h-4" /> Safety Defaults
           </h2>
+          <p className="text-xs text-muted-foreground mb-4">These settings control how cautious new agents are by default. You can always change them per agent later.</p>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Require approval by default</Label>
-                <p className="text-xs text-muted-foreground">New agents need approval before acting</p>
-              </div>
+            <SettingRow
+              label="Require approval by default"
+              description="New agents will pause and ask for your OK before taking any action — like sending a message or making a change."
+              detail="This is the safest option. With approval required, an agent will show you what it plans to do and wait for you to confirm. Great for building trust with a new agent before letting it work independently."
+            >
               <Switch defaultChecked />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Background execution off by default</Label>
-                <p className="text-xs text-muted-foreground">New agents won't run unless you ask</p>
-              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="Background execution off by default"
+              description="New agents will only start working when you explicitly tell them to — they won't run on their own."
+              detail="When this is on, agents sit idle until you press 'Run Now' or send them a task. This prevents surprise activity. Turn it off if you want agents to follow their schedules automatically."
+            >
               <Switch defaultChecked />
-            </div>
+            </SettingRow>
           </div>
         </section>
 
@@ -222,22 +273,24 @@ const SettingsPage: React.FC = () => {
 
         {/* Office */}
         <section>
-          <h2 className="font-display font-semibold text-lg text-foreground mb-4">Office</h2>
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1">Office</h2>
+          <p className="text-xs text-muted-foreground mb-4">Visual preferences for the Office view — the virtual workspace where your agents hang out.</p>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Ambient animations</Label>
-                <p className="text-xs text-muted-foreground">Plants sway, monitors glow</p>
-              </div>
+            <SettingRow
+              label="Ambient animations"
+              description="Small background details like plants swaying and monitors glowing, making the office feel alive."
+              detail="These are purely decorative. They don't affect performance or how agents work — just add a cozy atmosphere. Turn off if you prefer a cleaner, more static look."
+            >
               <Switch defaultChecked />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Agent idle animations</Label>
-                <p className="text-xs text-muted-foreground">Agents subtly move when idle</p>
-              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="Agent idle animations"
+              description="Agents subtly move or shift when they're not actively working — like a person fidgeting at their desk."
+              detail="This makes agents feel more lifelike. They'll do small idle motions when they have nothing to do. Turning this off makes them stand perfectly still, which can feel cleaner but less charming."
+            >
               <Switch defaultChecked />
-            </div>
+            </SettingRow>
           </div>
         </section>
 
@@ -245,22 +298,24 @@ const SettingsPage: React.FC = () => {
 
         {/* Notifications */}
         <section>
-          <h2 className="font-display font-semibold text-lg text-foreground mb-4">Notifications</h2>
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1">Notifications</h2>
+          <p className="text-xs text-muted-foreground mb-4">Choose which events you want to be notified about. These show up as alerts inside Homeroom.</p>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Agent needs attention</Label>
-                <p className="text-xs text-muted-foreground">When an agent is waiting for you</p>
-              </div>
+            <SettingRow
+              label="Agent needs attention"
+              description="Get notified when an agent is stuck, has a question, or needs your approval to continue."
+              detail="This is important if you have approval mode turned on — without this notification, you might not notice an agent waiting for your input, causing delays."
+            >
               <Switch defaultChecked />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Task completed</Label>
-                <p className="text-xs text-muted-foreground">When an agent finishes a task</p>
-              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="Task completed"
+              description="Get notified when an agent finishes a task you gave it — so you can review the result."
+              detail="Useful for keeping track of what's been done, especially if agents are running in the background. You'll see a quick summary of what was completed."
+            >
               <Switch defaultChecked />
-            </div>
+            </SettingRow>
           </div>
         </section>
 
@@ -268,10 +323,14 @@ const SettingsPage: React.FC = () => {
 
         {/* Account */}
         <section>
-          <h2 className="font-display font-semibold text-lg text-foreground mb-4">Account</h2>
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1">Account</h2>
+          <p className="text-xs text-muted-foreground mb-4">Your personal details. This is how agents and the system refer to you.</p>
           <div className="space-y-3">
             <div>
-              <Label className="text-sm font-medium">Display Name</Label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-sm font-medium">Display Name</Label>
+                <HelpTip text="This is the name agents will use when talking to you or about you. It doesn't affect any login or security — it's just a friendly label." />
+              </div>
               <Input className="mt-1" defaultValue="Manager" />
             </div>
           </div>
@@ -282,7 +341,8 @@ const SettingsPage: React.FC = () => {
 
         {/* Debug */}
         <section>
-          <h2 className="font-display font-semibold text-lg text-foreground mb-4 text-muted-foreground">Debug</h2>
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1 text-muted-foreground">Debug</h2>
+          <p className="text-xs text-muted-foreground mb-3">Developer tools for testing. You probably don&apos;t need these unless something went wrong.</p>
           <Button size="sm" variant="outline" onClick={() => { localStorage.removeItem('homeroom-onboarded'); window.location.href = '/onboarding'; }}>
             <RefreshCw className="w-3 h-3" /> Reset Onboarding
           </Button>
