@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Shield, Cpu, Cloud, RefreshCw, Brain, Key, Eye, EyeOff, Trash2, Check, ExternalLink } from 'lucide-react';
+import { Shield, Cpu, Cloud, RefreshCw, Brain, Key, Eye, EyeOff, Trash2, Check, ExternalLink, Wand2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { completeOnboarding } from './OnboardingPage';
 import ModelSetupWizard from '@/components/ModelSetupWizard';
@@ -93,6 +94,7 @@ const ProviderKeyRow: React.FC<{ providerKey: string; info: typeof PROVIDER_INFO
 };
 
 const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const modelConfig = useModelConfig();
   const store = useModelStore();
   const [showModelWizard, setShowModelWizard] = useState(false);
@@ -180,9 +182,12 @@ const SettingsPage: React.FC = () => {
           <h2 className="font-display font-semibold text-lg text-foreground mb-2 flex items-center gap-2">
             <Key className="w-4 h-4" /> API Keys
           </h2>
-          <p className="text-xs text-muted-foreground mb-4">
+          <p className="text-xs text-muted-foreground mb-3">
             Manage API keys for each provider. Keys are stored locally on your device.
           </p>
+          <Button size="sm" variant="outline" className="mb-4" onClick={() => navigate('/setup')}>
+            <Wand2 className="w-3.5 h-3.5" /> Guided Setup Wizard
+          </Button>
           <div className="space-y-2">
             {Object.entries(PROVIDER_INFO).map(([key, info]) => (
               <ProviderKeyRow key={key} providerKey={key} info={info} />
