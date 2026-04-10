@@ -279,11 +279,11 @@ const SecureSetupPage: React.FC = () => {
                 {
                   icon: Lock,
                   title: 'Your keys stay on your device',
-                  desc: 'We never send your API keys to our servers. They are stored in your browser's local storage, on your machine only.',
+                  desc: "We never send your API keys to our servers. They are stored in your browser\u2019s local storage, on your machine only.",
                 },
                 {
                   icon: HardDrive,
-                  title: 'You're in full control',
+                  title: "You\u2019re in full control",
                   desc: 'You can add, update, or remove any key at any time from Settings. Nothing is permanent.',
                 },
                 {
@@ -335,19 +335,19 @@ const SecureSetupPage: React.FC = () => {
                 {
                   step: '1',
                   title: 'You paste your key',
-                  desc: 'The key goes into a password field. It's masked by default so nobody looking at your screen can read it.',
+                  desc: "The key goes into a password field. It\u2019s masked by default so nobody looking at your screen can read it.",
                   color: 'bg-primary/10 text-primary',
                 },
                 {
                   step: '2',
                   title: 'We validate the format',
-                  desc: 'We check that the key looks right (correct prefix, length) so you don't accidentally paste something wrong. We never test it against the provider.',
+                  desc: "We check that the key looks right (correct prefix, length) so you don\u2019t accidentally paste something wrong. We never test it against the provider.",
                   color: 'bg-accent text-accent-foreground',
                 },
                 {
                   step: '3',
                   title: 'It's saved to localStorage',
-                  desc: 'Your browser\'s built-in storage keeps the key on your device. It never leaves your machine and is never included in network requests to Homeroom.',
+                  desc: "Your browser\u2019s built-in storage keeps the key on your device. It never leaves your machine and is never included in network requests to Homeroom.",
                   color: 'bg-secondary/10 text-secondary',
                 },
                 {
@@ -376,7 +376,7 @@ const SecureSetupPage: React.FC = () => {
               <ul className="space-y-2">
                 {[
                   'Set spending limits on your provider accounts',
-                  'Use separate API keys for Homeroom (don't reuse keys from other apps)',
+                  "Use separate API keys for Homeroom (don\u2019t reuse keys from other apps)",
                   'Rotate your keys periodically (every 90 days is a good cadence)',
                   'Revoke keys immediately if you suspect compromise',
                 ].map(tip => (
