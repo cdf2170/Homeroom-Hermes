@@ -4,10 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Shield, Cpu, Cloud, RefreshCw, Brain, Key, Eye, EyeOff, Trash2, Check, ExternalLink, Wand2, Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Shield, Cpu, Cloud, RefreshCw, Brain, Key, Eye, EyeOff, Trash2, Check, ExternalLink,
+  Wand2, Info, Plug, Search, Calendar, Mail, MessageSquare, Globe,
+  FileText, Database, Bell, GitBranch, ChevronRight, Zap,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { completeOnboarding } from './OnboardingPage';
 import ModelSetupWizard from '@/components/ModelSetupWizard';
 import { useModelConfig, useModelStore, hasProviderKey, setProviderKey, removeProviderKey, getProviderKey } from '@/store/modelConfigStore';

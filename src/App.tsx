@@ -43,7 +43,7 @@ const AppRoutes = () => (
     <Route path="/trust" element={<Navigate to="/activity" replace />} />
     <Route path="/audit" element={<AppLayout><AuditPage /></AppLayout>} />
     <Route path="/templates" element={<AppLayout><TemplatesPage /></AppLayout>} />
-    <Route path="/plugins" element={<AppLayout><PluginsPage /></AppLayout>} />
+    <Route path="/plugins" element={<Navigate to="/settings" replace />} />
     <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
     <Route path="/create-agent" element={<AppLayout><CreateAgentPage /></AppLayout>} />
     <Route path="/setup" element={<SecureSetupPage />} />
