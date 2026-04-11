@@ -343,6 +343,11 @@ const SettingsPage: React.FC = () => {
 
         <Separator />
 
+        {/* Plugins & Connections */}
+        <PluginsSection />
+
+        <Separator />
+
         {/* Debug */}
         <section>
           <h2 className="font-display font-semibold text-lg text-foreground mb-1 text-muted-foreground">Debug</h2>
