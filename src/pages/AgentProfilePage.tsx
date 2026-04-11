@@ -58,7 +58,7 @@ const stateColor = (state: string) => {
 const SECTIONS = [
   { id: 'overview', label: 'Overview', icon: User },
   { id: 'instructions', label: 'Instructions', icon: FileText },
-  { id: 'personality', label: 'Personality', icon: Sparkles },
+  { id: 'personality', label: 'Soul', icon: Heart },
   { id: 'memory', label: 'Memory', icon: Brain },
   { id: 'rules', label: 'Rules', icon: Shield },
   { id: 'tools', label: 'Tools', icon: Wrench },
