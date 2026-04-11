@@ -266,7 +266,7 @@ const PluginsSection: React.FC = () => {
   );
 };
 
-
+const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const modelConfig = useModelConfig();
   const store = useModelStore();
