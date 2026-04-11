@@ -646,8 +646,26 @@ const InstructionsSection = ({ agent }: { agent: Agent }) => {
 };
 
 // ═══════════════════════════════
-// PERSONALITY
+// PERSONALITY (Soul)
 // ═══════════════════════════════
+
+const VIBE_DESCRIPTIONS: Record<string, string> = {
+  calm: 'Measured and steady — never rushes, never panics.',
+  cheerful: 'Upbeat and encouraging — celebrates small wins.',
+  serious: 'All business — focused, no small talk.',
+  precise: 'Exact and careful — every word counts.',
+  creative: 'Imaginative and lateral — thinks around corners.',
+  quiet: 'Minimal and reserved — speaks only when it matters.',
+};
+
+const ARCHETYPE_DESCRIPTIONS: Record<string, { icon: React.ElementType; desc: string }> = {
+  organizer: { icon: Database, desc: 'Structures chaos into order. Loves lists, plans, and workflows.' },
+  researcher: { icon: BookOpen, desc: 'Digs deep, surfaces what matters. Thorough and citation-driven.' },
+  builder: { icon: Wrench, desc: 'Makes things. Writes code, drafts docs, ships deliverables.' },
+  watcher: { icon: Eye, desc: 'Monitors and alerts. Catches problems before they escalate.' },
+  helper: { icon: Heart, desc: 'Asks clarifying questions first. Patient and supportive.' },
+  messenger: { icon: MessageSquare, desc: 'Communicates and coordinates. Bridges people and systems.' },
+};
 
 const PersonalitySection = ({ agent }: { agent: Agent }) => {
   const app = agent.appearance;
@@ -684,63 +702,120 @@ const PersonalitySection = ({ agent }: { agent: Agent }) => {
   );
 
   return (
-    <div className="space-y-6">
-      <SectionHeader icon={Sparkles} title="Personality" desc="How this agent should sound and look" />
-
-      <div className="bg-card border border-border rounded-xl p-4">
-        <p className="text-xs font-semibold text-muted-foreground mb-2">How this agent should sound</p>
-        <EditableField
-          label=""
-          value={agent.personality}
-          onSave={v => updateAgent(agent.id, { personality: v })}
-          multiline
-          placeholder="e.g. Friendly but concise. Uses simple language. Avoids jargon."
-        />
-      </div>
-
+    <div className="space-y-8">
+      {/* Header */}
       <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-2">Tone presets</p>
-        <div className="flex flex-wrap gap-2">
-          {(Object.entries(VIBE_LABELS) as [Vibe, string][]).map(([key, label]) => (
-            <button key={key} onClick={() => updateAgent(agent.id, { vibe: key })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${agent.vibe === key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
-            >{label}</button>
-          ))}
+        <div className="flex items-center gap-2 mb-1">
+          <Heart className="w-4 h-4 text-primary" />
+          <h2 className="font-display text-base font-bold text-foreground">Soul</h2>
         </div>
+        <p className="text-xs text-muted-foreground">This is {agent.name}'s character sheet — who they are, how they sound, and how they show up.</p>
       </div>
 
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-2">Voice preset</p>
-        <div className="flex flex-wrap gap-2">
-          {(['neutral', 'warm', 'direct', 'playful', 'calm'] as const).map(v => (
-            <button key={v} onClick={() => setApp({ voicePreset: v })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${app.voicePreset === v ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
-            >{v}</button>
-          ))}
+      {/* ═══ Block 1: Voice & Character ═══ */}
+      <div className="space-y-5">
+        <div className="flex items-baseline gap-2">
+          <p className="text-sm font-bold text-foreground">Voice & Character</p>
+          <p className="text-[10px] text-muted-foreground">— how they communicate</p>
         </div>
-      </div>
 
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-2">Archetype</p>
-        <div className="grid grid-cols-3 gap-2">
-          {(Object.entries(ARCHETYPE_LABELS) as [Archetype, string][]).map(([key, label]) => (
-            <button key={key} onClick={() => updateAgent(agent.id, { archetype: key })}
-              className={`p-2.5 rounded-xl border-2 text-center text-xs font-medium transition-all ${agent.archetype === key ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'}`}
-            >{label}</button>
-          ))}
+        {/* Free-text personality */}
+        <div className="bg-card border border-border rounded-xl p-5">
+          <p className="text-xs font-bold text-foreground mb-0.5">In their own words</p>
+          <p className="text-[10px] text-muted-foreground mb-3">If this agent could describe themselves, what would they say? This shapes their tone in every response.</p>
+          <EditableField
+            label=""
+            value={agent.personality}
+            onSave={v => updateAgent(agent.id, { personality: v })}
+            multiline
+            placeholder="e.g. I'm friendly but concise. I use simple language and avoid jargon. I ask before assuming, and I always cite my sources."
+          />
         </div>
-      </div>
 
-      {/* ── Appearance Editor ── */}
-      <div className="border-t border-border pt-5">
-        <p className="text-xs font-semibold text-foreground mb-3">Appearance</p>
-        <div className="flex gap-4">
-          {/* Live preview */}
-          <div className="shrink-0">
-            <AvatarPreview appearance={app} name={agent.name} size={120} />
+        {/* Communication style cards */}
+        <div>
+          <p className="text-xs font-bold text-foreground mb-0.5">Communication style</p>
+          <p className="text-[10px] text-muted-foreground mb-3">Pick the vibe that fits. This affects how the agent phrases things, not what it knows.</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.entries(VIBE_LABELS) as [Vibe, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => updateAgent(agent.id, { vibe: key })}
+                className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all ${
+                  agent.vibe === key
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-muted-foreground/30 bg-card'
+                }`}
+              >
+                <p className="text-xs font-bold text-foreground">{label}</p>
+                <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+                  {VIBE_DESCRIPTIONS[key] || 'A distinct communication style.'}
+                </p>
+              </button>
+            ))}
           </div>
-          {/* Controls */}
-          <div className="flex-1 space-y-3 overflow-y-auto max-h-[50vh] pr-1">
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-border" />
+
+      {/* ═══ Block 2: Archetype ═══ */}
+      <div className="space-y-4">
+        <div className="flex items-baseline gap-2">
+          <p className="text-sm font-bold text-foreground">Archetype</p>
+          <p className="text-[10px] text-muted-foreground">— how they think and approach tasks</p>
+        </div>
+        <p className="text-[10px] text-muted-foreground -mt-2">This isn't cosmetic — it changes the agent's reasoning style and what it prioritizes.</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          {(Object.entries(ARCHETYPE_LABELS) as [Archetype, string][]).map(([key, label]) => {
+            const meta = ARCHETYPE_DESCRIPTIONS[key];
+            const Icon = meta?.icon || Sparkles;
+            const isSelected = agent.archetype === key;
+            return (
+              <button
+                key={key}
+                onClick={() => updateAgent(agent.id, { archetype: key })}
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${
+                  isSelected
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-muted-foreground/30 bg-card'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-foreground">{label}</p>
+                  <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+                    {meta?.desc || 'A unique approach to problem solving.'}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-border" />
+
+      {/* ═══ Block 3: Appearance ═══ */}
+      <div className="space-y-4">
+        <div className="flex items-baseline gap-2">
+          <p className="text-sm font-bold text-foreground">How they look in the office</p>
+        </div>
+        <p className="text-[10px] text-muted-foreground -mt-2">Customize {agent.name}'s avatar. This is how they appear on the office floor and in conversations.</p>
+
+        <div className="bg-card border border-border rounded-xl p-5">
+          {/* Centered large avatar */}
+          <div className="flex justify-center mb-5">
+            <AvatarPreview appearance={app} name={agent.name} size={150} />
+          </div>
+
+          {/* Controls — scrollable */}
+          <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
             <ChipRow label="Body type" options={['masculine', 'feminine', 'androgynous'] as AgentAppearance['bodyType'][]} value={app.bodyType || 'androgynous'} onChange={v => setApp({ bodyType: v })} />
             <ColorRow label="Skin tone" colors={SKIN_TONES} value={app.skinTone} onChange={c => setApp({ skinTone: c })} />
             <ChipRow label="Hair style" options={['short','long','curly','buzz','ponytail','bun','mohawk','braids','wavy','afro','shaved'] as AgentAppearance['hairStyle'][]} value={app.hairStyle} onChange={v => setApp({ hairStyle: v })} />
