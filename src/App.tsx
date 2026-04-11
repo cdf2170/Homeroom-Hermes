@@ -13,6 +13,7 @@ import CreateAgentPage from "./pages/CreateAgentPage";
 import FrontDeskPage from "./pages/FrontDeskPage";
 import PluginsPage from "./pages/PluginsPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
+import DoneWorkPage from "./pages/DoneWorkPage";
 import AgentWelcomePage from "./pages/AgentWelcomePage";
 import SecureSetupPage from "./pages/SecureSetupPage";
 import ActivityTrustPage from "./pages/ActivityTrustPage";
@@ -34,6 +35,7 @@ const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<AppLayout><FrontDeskPage /></AppLayout>} />
     <Route path="/front-desk" element={<Navigate to="/" replace />} />
+    <Route path="/done-work" element={<AppLayout><DoneWorkPage /></AppLayout>} />
     <Route path="/approvals" element={<AppLayout><ApprovalsPage /></AppLayout>} />
     <Route path="/office" element={<AppLayout><OfficePage /></AppLayout>} />
     <Route path="/agents" element={<AppLayout><AgentsPage /></AppLayout>} />
