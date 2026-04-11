@@ -6,11 +6,11 @@ import { getPendingCount } from '@/store/approvalStore';
 
 const NAV_ITEMS = [
   { to: '/', icon: Home, label: 'Home' },
-  { to: '/approvals', icon: ClipboardCheck, label: 'Approvals' },
   { to: '/office', icon: Building2, label: 'Office' },
   { to: '/agents', icon: Users, label: 'Agents' },
   { to: '/activity', icon: Activity, label: 'Activity & Trust' },
   { to: '/plugins', icon: Plug, label: 'Plugins' },
+  { to: '/approvals', icon: ClipboardCheck, label: 'Approvals' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
