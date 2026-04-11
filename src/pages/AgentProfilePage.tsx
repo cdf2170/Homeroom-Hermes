@@ -8,7 +8,7 @@ import {
   AlertTriangle, Pencil, Check, Plus, X, ChevronDown, ChevronUp,
   BookOpen, Wrench, Database, Users, RefreshCw, Copy, Rocket,
   Heart, Lightbulb, Bookmark, StickyNote, Pin, CheckCircle2, XCircle,
-  MessageSquare, Calendar,
+  MessageSquare, Calendar, Eye, EyeOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
