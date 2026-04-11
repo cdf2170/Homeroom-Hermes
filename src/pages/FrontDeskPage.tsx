@@ -4,17 +4,14 @@ import { Button } from '@/components/ui/button';
 import StateCoverage from '@/components/StateCoverage';
 import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 import {
-  Building2, Users, AlertTriangle, ArrowRight, Sparkles, Shield,
-  RefreshCw, HelpCircle, Settings, Plus, CheckCircle2, Info,
-  Cpu, Cloud, Zap, Clock, ClipboardCheck,
+  Building2, Users, AlertTriangle, ArrowRight, Shield,
+  RefreshCw, Settings, Plus, Zap, Activity,
 } from 'lucide-react';
 import api from '@/services/mockApi';
-import { getPendingCount } from '@/store/approvalStore';
 import { useConnectionStatus } from '@/lib/connection';
 
 const FrontDeskPage: React.FC = () => {
   const connectionStatus = useConnectionStatus();
-  const agents = api.useAgents();
   const navigate = useNavigate();
   const summaries = api.listAgents();
   const findings = api.getTrustFindings();
@@ -27,19 +24,19 @@ const FrontDeskPage: React.FC = () => {
   const bgUnsafe = summaries.filter(a => a.backgroundEnabled && !a.hasPermissions);
   const reviewFindings = findings.filter(f => f.severity === 'review' || f.severity === 'risky');
 
-  // Build suggested actions
-  const suggestions: { icon: React.ElementType; text: string; action: () => void; accent?: string }[] = [];
+  // Build suggested actions with priority coloring
+  const suggestions: { icon: React.ElementType; text: string; action: () => void; border: string }[] = [];
 
   attention.forEach(a => {
     suggestions.push({
-      icon: AlertTriangle, accent: 'text-status-waiting',
+      icon: AlertTriangle, border: 'border-l-amber-400',
       text: `${a.name} needs your input`,
       action: () => navigate(`/agents/${a.id}`),
     });
   });
   noPerms.forEach(a => {
     suggestions.push({
-      icon: Shield, accent: 'text-status-waiting',
+      icon: Shield, border: 'border-l-red-400',
       text: `${a.name} has no guardrails — add permissions`,
       action: () => navigate(`/agents/${a.id}`),
     });
@@ -47,7 +44,7 @@ const FrontDeskPage: React.FC = () => {
   bgUnsafe.forEach(a => {
     if (!noPerms.find(n => n.id === a.id)) {
       suggestions.push({
-        icon: RefreshCw,
+        icon: RefreshCw, border: 'border-l-amber-400',
         text: `${a.name} runs in background without approval rules`,
         action: () => navigate(`/agents/${a.id}`),
       });
@@ -55,16 +52,33 @@ const FrontDeskPage: React.FC = () => {
   });
   if (summaries.length === 0) {
     suggestions.push({
-      icon: Plus,
+      icon: Plus, border: 'border-l-blue-400',
       text: 'Create your first agent to get started',
       action: () => navigate('/templates'),
     });
   }
 
+  // Pulse message
+  const pulseMessage = () => {
+    if (summaries.length === 0) return { text: 'Office is empty — create an agent to begin.', mood: 'neutral' as const };
+    if (attention.length > 0) return { text: `${attention.length} agent${attention.length !== 1 ? 's' : ''} waiting on you.`, mood: 'attention' as const };
+    if (active.length > 0) return { text: `${active.length} agent${active.length !== 1 ? 's' : ''} working. Everything's running.`, mood: 'working' as const };
+    return { text: 'All quiet. Your agents are standing by.', mood: 'calm' as const };
+  };
+
+  const pulse = pulseMessage();
+  const pulseDotColor = {
+    neutral: 'bg-muted-foreground/40',
+    attention: 'bg-amber-400 animate-pulse',
+    working: 'bg-emerald-400 animate-pulse',
+    calm: 'bg-emerald-400',
+  }[pulse.mood];
+
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <StateCoverage loading={loading} loadingRows={6}>
-      {/* (StateCoverage wraps all content below) */}
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display font-bold text-2xl text-foreground">Home</h1>
@@ -75,127 +89,94 @@ const FrontDeskPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Welcome summary */}
-      <div className="p-5 bg-card border border-border rounded-xl mb-6">
-        <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <Building2 className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              {summaries.length === 0
-                ? 'Your office is empty. Create an agent to get started.'
-                : `${summaries.length} agent${summaries.length !== 1 ? 's' : ''} in your office. ${active.length} working right now.`}
-              {attention.length > 0 && ` ${attention.length} need${attention.length === 1 ? 's' : ''} your input.`}
-            </p>
-            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-status-working' : connectionStatus === 'checking' ? 'bg-status-waiting animate-pulse' : 'bg-status-waiting'}`} />
-                {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'checking' ? 'Connecting...' : 'Demo mode'}
-              </span>
-              {health.cloudProvidersConnected.length > 0 && (
-                <span className="flex items-center gap-1">
-                  <Cloud className="w-3 h-3" /> {health.cloudProvidersConnected.length} provider{health.cloudProvidersConnected.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-          </div>
+      {/* Pulse banner */}
+      <div className="p-5 bg-card border border-border rounded-2xl mb-6">
+        <div className="flex items-center gap-3">
+          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${pulseDotColor}`} />
+          <p className="text-sm font-medium text-foreground">{pulse.text}</p>
+        </div>
+        <div className="flex items-center gap-4 mt-3 pl-[22px] text-[11px] text-muted-foreground">
+          <span>{summaries.length} agent{summaries.length !== 1 ? 's' : ''}</span>
+          <span className="text-border">·</span>
+          <span>{active.length} active</span>
+          {reviewFindings.length > 0 && (
+            <>
+              <span className="text-border">·</span>
+              <span className="text-amber-500">{reviewFindings.length} issue{reviewFindings.length !== 1 ? 's' : ''}</span>
+            </>
+          )}
+          {connectionStatus === 'disconnected' && (
+            <>
+              <span className="text-border">·</span>
+              <span className="text-muted-foreground/60">Demo mode</span>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <StatCard icon={Users} label="Agents" value={summaries.length} onClick={() => navigate('/agents')} />
-        <StatCard icon={Zap} label="Active" value={active.length} accent={active.length > 0 ? 'working' : undefined} onClick={() => navigate('/agents?filter=active')} />
-        <StatCard icon={ClipboardCheck} label="Approvals" value={getPendingCount()} accent={getPendingCount() > 0 ? 'attention' : undefined} onClick={() => navigate('/approvals')} />
-        <StatCard icon={AlertTriangle} label="Attention" value={attention.length} accent={attention.length > 0 ? 'attention' : undefined} onClick={() => navigate('/agents?filter=attention')} />
-        <StatCard icon={Shield} label="Issues" value={reviewFindings.length} accent={reviewFindings.length > 0 ? 'attention' : undefined} onClick={() => navigate('/activity')} />
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <StatCard icon={Users} label="Agents" value={summaries.length} tint="bg-primary/8 text-primary" onClick={() => navigate('/agents')} />
+        <StatCard icon={Zap} label="Active" value={active.length} tint="bg-emerald-500/8 text-emerald-600" onClick={() => navigate('/agents?filter=active')} />
+        <StatCard icon={AlertTriangle} label="Attention" value={attention.length} tint={attention.length > 0 ? 'bg-amber-500/8 text-amber-600' : 'bg-muted text-muted-foreground'} onClick={() => navigate('/agents?filter=attention')} />
+        <StatCard icon={Shield} label="Issues" value={reviewFindings.length} tint={reviewFindings.length > 0 ? 'bg-red-500/8 text-red-600' : 'bg-muted text-muted-foreground'} onClick={() => navigate('/activity')} />
       </div>
 
       {/* Suggested actions */}
-      {suggestions.length > 0 && (
-        <section className="mb-6">
-          <h2 className="font-display font-semibold text-sm text-foreground mb-3">Suggested Actions</h2>
+      <section className="mb-6">
+        <h2 className="font-display font-semibold text-sm text-foreground mb-3">Suggested Actions</h2>
+        {suggestions.length > 0 ? (
           <div className="space-y-2">
             {suggestions.map((s, i) => (
               <button
                 key={i}
                 onClick={s.action}
-                className="w-full flex items-center gap-3 p-3 bg-card border border-border rounded-xl hover:shadow-sm transition-shadow text-left"
+                className={`group w-full flex items-center gap-3 p-3 bg-card border border-border ${s.border} border-l-[3px] rounded-xl hover:shadow-sm transition-all text-left`}
               >
-                <s.icon className={`w-4 h-4 shrink-0 ${s.accent || 'text-primary'}`} />
+                <s.icon className="w-4 h-4 shrink-0 text-muted-foreground" />
                 <span className="text-sm text-foreground flex-1">{s.text}</span>
-                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             ))}
           </div>
-        </section>
-      )}
-
-      {/* Explainer cards */}
-      <section>
-        <h2 className="font-display font-semibold text-sm text-foreground mb-3 flex items-center gap-2">
-          <HelpCircle className="w-4 h-4 text-muted-foreground" /> How things work
-        </h2>
-        <div className="grid md:grid-cols-2 gap-3">
-          <ExplainerCard
-            icon={RefreshCw}
-            title="What does 'runs in background' mean?"
-            body="A background agent can work even when you're not watching. It follows its schedule and acts on its own. Make sure you've set permissions and approval rules first."
-          />
-          <ExplainerCard
-            icon={Shield}
-            title="What are guardrails?"
-            body="Guardrails define what an agent can and can't do — like which tools it can use, whether it can access the internet, and what needs your approval before acting."
-          />
-          <ExplainerCard
-            icon={Cpu}
-            title="Local vs Cloud"
-            body="Local agents run models on your device — fully private, works offline. Cloud agents use external AI providers — more powerful, but data leaves your machine."
-          />
-          <ExplainerCard
-            icon={Clock}
-            title="How do schedules work?"
-            body="You can set agents to run on a schedule — every morning, every few hours, or on a custom pattern. They'll check in and report back based on your settings."
-          />
-        </div>
+        ) : (
+          <div className="p-6 text-center rounded-xl border border-border bg-card">
+            <p className="text-sm text-muted-foreground">All clear — nothing needs your attention right now.</p>
+          </div>
+        )}
       </section>
 
-      {/* Setup CTA */}
+      {/* Connection status — only when disconnected */}
       {connectionStatus === 'disconnected' && (
-        <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-between">
+        <div className="p-4 border border-border rounded-xl flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-foreground">Not connected to a backend yet</p>
+            <p className="text-sm font-medium text-foreground">Not connected to a backend</p>
             <p className="text-xs text-muted-foreground">Set up models and connections to make your agents do real work.</p>
           </div>
-          <Button size="sm" onClick={() => navigate('/settings')}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
             <Settings className="w-4 h-4" /> Set up
           </Button>
         </div>
       )}
+      {connectionStatus === 'connected' && (
+        <p className="text-[11px] text-muted-foreground/50 text-center">Connected to local backend</p>
+      )}
+
       </StateCoverage>
     </div>
   );
 };
 
-const StatCard = ({ icon: Icon, label, value, accent, onClick }: {
-  icon: React.ElementType; label: string; value: number; accent?: string; onClick: () => void;
+const StatCard = ({ icon: Icon, label, value, tint, onClick }: {
+  icon: React.ElementType; label: string; value: number; tint: string; onClick: () => void;
 }) => (
-  <button onClick={onClick} className="p-4 bg-card border border-border rounded-xl text-left hover:shadow-sm transition-shadow">
-    <Icon className={`w-4 h-4 mb-2 ${accent === 'attention' ? 'text-status-waiting' : accent === 'working' ? 'text-status-working' : 'text-muted-foreground'}`} />
+  <button onClick={onClick} className="p-4 bg-card border border-border rounded-2xl text-left hover:shadow-sm transition-shadow">
+    <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${tint}`}>
+      <Icon className="w-4 h-4" />
+    </div>
     <p className="text-2xl font-bold text-foreground">{value}</p>
     <p className="text-xs text-muted-foreground">{label}</p>
   </button>
-);
-
-const ExplainerCard = ({ icon: Icon, title, body }: { icon: React.ElementType; title: string; body: string }) => (
-  <div className="p-4 bg-card border border-border rounded-xl">
-    <div className="flex items-center gap-2 mb-2">
-      <Icon className="w-4 h-4 text-primary" />
-      <p className="text-xs font-semibold text-foreground">{title}</p>
-    </div>
-    <p className="text-[11px] text-muted-foreground leading-relaxed">{body}</p>
-  </div>
 );
 
 export default FrontDeskPage;
