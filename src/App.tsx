@@ -17,6 +17,7 @@ import AgentWelcomePage from "./pages/AgentWelcomePage";
 import SecureSetupPage from "./pages/SecureSetupPage";
 import ActivityTrustPage from "./pages/ActivityTrustPage";
 import NotFound from "./pages/NotFound.tsx";
+import { useBackendSync } from "@/hooks/useBackendSync";
 
 const queryClient = new QueryClient();
 
@@ -49,12 +50,17 @@ const AppRoutes = () => (
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
+const AppBoot = () => {
+  useBackendSync();
+  return <AppRoutes />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Sonner />
       <BrowserRouter>
-        <AppRoutes />
+        <AppBoot />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

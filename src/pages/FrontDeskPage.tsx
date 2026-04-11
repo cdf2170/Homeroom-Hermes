@@ -10,8 +10,10 @@ import {
 } from 'lucide-react';
 import api from '@/services/mockApi';
 import { getPendingCount } from '@/store/approvalStore';
+import { useConnectionStatus } from '@/lib/connection';
 
 const FrontDeskPage: React.FC = () => {
+  const connectionStatus = useConnectionStatus();
   const agents = api.useAgents();
   const navigate = useNavigate();
   const summaries = api.listAgents();
@@ -88,8 +90,8 @@ const FrontDeskPage: React.FC = () => {
             </p>
             <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${health.serviceMode === 'demo' ? 'bg-status-waiting' : 'bg-status-working'}`} />
-                {health.serviceMode === 'demo' ? 'Demo mode' : 'Connected'}
+                <span className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-status-working' : connectionStatus === 'checking' ? 'bg-status-waiting animate-pulse' : 'bg-status-waiting'}`} />
+                {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'checking' ? 'Connecting...' : 'Demo mode'}
               </span>
               {health.cloudProvidersConnected.length > 0 && (
                 <span className="flex items-center gap-1">
@@ -160,7 +162,7 @@ const FrontDeskPage: React.FC = () => {
       </section>
 
       {/* Setup CTA */}
-      {health.serviceMode === 'demo' && (
+      {connectionStatus === 'disconnected' && (
         <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-foreground">Not connected to a backend yet</p>
