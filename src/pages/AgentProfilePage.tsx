@@ -8,7 +8,7 @@ import {
   AlertTriangle, Pencil, Check, Plus, X, ChevronDown, ChevronUp,
   BookOpen, Wrench, Database, Users, RefreshCw, Copy, Rocket,
   Heart, Lightbulb, Bookmark, StickyNote, Pin, CheckCircle2, XCircle,
-  MessageSquare, Calendar,
+  MessageSquare, Calendar, Eye, EyeOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -440,7 +440,73 @@ const AgentQuickActions = ({ agent }: { agent: Agent }) => {
 // INSTRUCTIONS
 // ═══════════════════════════════
 
+// ── Markdown preview helper ──
+const AgentsMdPreview = ({ agent }: { agent: Agent }) => {
+  const md = [
+    `# ${agent.name}`,
+    '',
+    agent.role ? `> ${agent.role}` : '> *(no role defined)*',
+    '',
+    '## How to work',
+    '',
+    agent.instructions || '*No instructions yet.*',
+    '',
+    '## Success criteria',
+    '',
+    agent.audienceNotes || '*Not defined yet.*',
+    '',
+    '## Boundaries',
+    '',
+    agent.environmentNotes || '*No boundaries set.*',
+    '',
+    `---`,
+    '',
+    `**Archetype:** ${ARCHETYPE_LABELS[agent.archetype]}`,
+  ].join('\n');
+
+  // Simple markdown-to-JSX renderer for preview
+  const renderLines = (text: string) => {
+    return text.split('\n').map((line, i) => {
+      if (line.startsWith('# ')) return <h1 key={i} className="text-lg font-bold text-foreground mb-1">{line.slice(2)}</h1>;
+      if (line.startsWith('## ')) return <h2 key={i} className="text-sm font-bold text-foreground mt-4 mb-1 border-b border-border pb-1">{line.slice(3)}</h2>;
+      if (line.startsWith('> ')) return <blockquote key={i} className="text-xs text-muted-foreground italic border-l-2 border-primary/40 pl-3 my-1">{line.slice(2)}</blockquote>;
+      if (line.startsWith('---')) return <hr key={i} className="border-border my-3" />;
+      if (line.startsWith('**') && line.includes(':**')) {
+        const [label, ...rest] = line.split(':**');
+        return <p key={i} className="text-xs text-foreground"><span className="font-bold">{label.replace(/\*\*/g, '')}:</span> {rest.join(':**').replace(/\*\*/g, '')}</p>;
+      }
+      if (line.startsWith('*') && line.endsWith('*') && !line.startsWith('**')) return <p key={i} className="text-xs text-muted-foreground italic">{line.replace(/\*/g, '')}</p>;
+      if (line.trim() === '') return <div key={i} className="h-1" />;
+      return <p key={i} className="text-xs text-foreground leading-relaxed">{line}</p>;
+    });
+  };
+
+  return (
+    <div className="border border-border rounded-xl overflow-hidden">
+      {/* File tab bar */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-muted/60 border-b border-border">
+        <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="font-mono text-[11px] font-medium text-foreground">AGENTS.md</span>
+        <span className="text-[10px] text-muted-foreground ml-auto">Preview</span>
+      </div>
+      {/* Rendered content */}
+      <div className="p-4 bg-card/50 font-sans space-y-0 max-h-[50vh] overflow-y-auto">
+        {renderLines(md)}
+      </div>
+      {/* Raw markdown toggle */}
+      <details className="border-t border-border">
+        <summary className="px-3 py-2 text-[10px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
+          View raw markdown
+        </summary>
+        <pre className="px-4 py-3 text-[11px] font-mono text-muted-foreground bg-muted/30 whitespace-pre-wrap overflow-x-auto max-h-[40vh]">{md}</pre>
+      </details>
+    </div>
+  );
+};
+
 const InstructionsSection = ({ agent }: { agent: Agent }) => {
+  const [showPreview, setShowPreview] = useState(false);
+
   return (
     <div className="space-y-0">
       {/* AGENTS.md document header — briefing style */}
@@ -457,9 +523,20 @@ const InstructionsSection = ({ agent }: { agent: Agent }) => {
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="text-xs h-8 shrink-0 gap-1.5" onClick={() => toast.info('AGENTS.md opened in editor')}>
-            <BookOpen className="w-3.5 h-3.5" /> Open AGENTS.md
-          </Button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              variant={showPreview ? 'secondary' : 'ghost'}
+              size="sm"
+              className="text-xs h-8 gap-1.5"
+              onClick={() => setShowPreview(!showPreview)}
+            >
+              {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {showPreview ? 'Edit' : 'Preview'}
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs h-8 shrink-0 gap-1.5" onClick={() => toast.info('AGENTS.md opened in editor')}>
+              <BookOpen className="w-3.5 h-3.5" /> Open AGENTS.md
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -471,79 +548,86 @@ const InstructionsSection = ({ agent }: { agent: Agent }) => {
         </p>
       </div>
 
-      {/* ── Section 1: Role ── */}
-      <div className="py-4 border-b border-border">
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <p className="text-xs font-bold text-foreground">Role</p>
-          <p className="text-[10px] text-muted-foreground">— what is this agent's job in one line</p>
-        </div>
-        <EditableField label="" value={agent.role} onSave={v => updateAgent(agent.id, { role: v })} placeholder="e.g. Research assistant that finds and summarizes information" />
-      </div>
+      {/* ── Preview mode ── */}
+      {showPreview ? (
+        <AgentsMdPreview agent={agent} />
+      ) : (
+        <>
+          {/* ── Section 1: Role ── */}
+          <div className="py-4 border-b border-border">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <p className="text-xs font-bold text-foreground">Role</p>
+              <p className="text-[10px] text-muted-foreground">— what is this agent's job in one line</p>
+            </div>
+            <EditableField label="" value={agent.role} onSave={v => updateAgent(agent.id, { role: v })} placeholder="e.g. Research assistant that finds and summarizes information" />
+          </div>
 
-      {/* ── Section 2: How to work ── */}
-      <div className="py-4 border-b border-border">
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <p className="text-xs font-bold text-foreground">How to work</p>
-          <p className="text-[10px] text-muted-foreground">— the actual prompt and behavior rules</p>
-        </div>
-        <p className="text-[10px] text-muted-foreground mb-2">These are the step-by-step instructions {agent.name} follows on every task. Be specific — this is the prompt.</p>
-        <EditableField
-          label=""
-          value={agent.instructions}
-          onSave={v => updateAgent(agent.id, { instructions: v })}
-          multiline
-          placeholder="e.g. When I ask you to research something, find at least 3 reliable sources. Always include links. Present findings as bullet points with a summary at the top."
-        />
-      </div>
+          {/* ── Section 2: How to work ── */}
+          <div className="py-4 border-b border-border">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <p className="text-xs font-bold text-foreground">How to work</p>
+              <p className="text-[10px] text-muted-foreground">— the actual prompt and behavior rules</p>
+            </div>
+            <p className="text-[10px] text-muted-foreground mb-2">These are the step-by-step instructions {agent.name} follows on every task. Be specific — this is the prompt.</p>
+            <EditableField
+              label=""
+              value={agent.instructions}
+              onSave={v => updateAgent(agent.id, { instructions: v })}
+              multiline
+              placeholder="e.g. When I ask you to research something, find at least 3 reliable sources. Always include links. Present findings as bullet points with a summary at the top."
+            />
+          </div>
 
-      {/* ── Section 3: Success criteria ── */}
-      <div className="py-4 border-b border-border">
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><Target className="w-3 h-3 text-primary" /> What does a good output look like?</p>
-        </div>
-        <p className="text-[10px] text-muted-foreground mb-2">Describe what a successful result looks like so the agent knows when it's done right.</p>
-        <EditableField
-          label=""
-          value={agent.audienceNotes || ''}
-          onSave={v => updateAgent(agent.id, { audienceNotes: v })}
-          multiline
-          placeholder="e.g. A bullet-point summary with at least 3 sources linked. No longer than 500 words. Includes a confidence score."
-        />
-      </div>
+          {/* ── Section 3: Success criteria ── */}
+          <div className="py-4 border-b border-border">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><Target className="w-3 h-3 text-primary" /> What does a good output look like?</p>
+            </div>
+            <p className="text-[10px] text-muted-foreground mb-2">Describe what a successful result looks like so the agent knows when it's done right.</p>
+            <EditableField
+              label=""
+              value={agent.audienceNotes || ''}
+              onSave={v => updateAgent(agent.id, { audienceNotes: v })}
+              multiline
+              placeholder="e.g. A bullet-point summary with at least 3 sources linked. No longer than 500 words. Includes a confidence score."
+            />
+          </div>
 
-      {/* ── Section 4: Boundaries ── */}
-      <div className="py-4 border-b border-border">
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><AlertTriangle className="w-3 h-3 text-status-waiting" /> What should it never do?</p>
-        </div>
-        <p className="text-[10px] text-muted-foreground mb-2">Hard boundaries. These also flow into the <span className="font-medium text-foreground">Trust Center</span> for ongoing monitoring.</p>
-        <EditableField
-          label=""
-          value={agent.environmentNotes || ''}
-          onSave={v => updateAgent(agent.id, { environmentNotes: v })}
-          multiline
-          placeholder="e.g. Never fabricate sources or citations. Never access private repos without explicit permission. Never share user data outside the workspace."
-        />
-      </div>
+          {/* ── Section 4: Boundaries ── */}
+          <div className="py-4 border-b border-border">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><AlertTriangle className="w-3 h-3 text-status-waiting" /> What should it never do?</p>
+            </div>
+            <p className="text-[10px] text-muted-foreground mb-2">Hard boundaries. These also flow into the <span className="font-medium text-foreground">Trust Center</span> for ongoing monitoring.</p>
+            <EditableField
+              label=""
+              value={agent.environmentNotes || ''}
+              onSave={v => updateAgent(agent.id, { environmentNotes: v })}
+              multiline
+              placeholder="e.g. Never fabricate sources or citations. Never access private repos without explicit permission. Never share user data outside the workspace."
+            />
+          </div>
 
-      {/* ── Section 5: Archetype ── */}
-      <div className="py-4 border-b border-border">
-        <div className="flex items-baseline gap-2 mb-1">
-          <p className="text-xs font-bold text-foreground">Archetype</p>
-          <p className="text-[10px] text-muted-foreground">— shapes how the agent thinks and approaches tasks</p>
-        </div>
-        <p className="text-[10px] text-muted-foreground mb-2">This isn't cosmetic — it changes the agent's reasoning style. A "helper" will ask clarifying questions; an "executor" will just do it.</p>
-        <Select value={agent.archetype} onValueChange={(v) => updateAgent(agent.id, { archetype: v as any })}>
-          <SelectTrigger className="h-9 text-xs max-w-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.entries(ARCHETYPE_LABELS) as [string, string][]).map(([key, label]) => (
-              <SelectItem key={key} value={key} className="text-xs">{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+          {/* ── Section 5: Archetype ── */}
+          <div className="py-4 border-b border-border">
+            <div className="flex items-baseline gap-2 mb-1">
+              <p className="text-xs font-bold text-foreground">Archetype</p>
+              <p className="text-[10px] text-muted-foreground">— shapes how the agent thinks and approaches tasks</p>
+            </div>
+            <p className="text-[10px] text-muted-foreground mb-2">This isn't cosmetic — it changes the agent's reasoning style. A "helper" will ask clarifying questions; an "executor" will just do it.</p>
+            <Select value={agent.archetype} onValueChange={(v) => updateAgent(agent.id, { archetype: v as any })}>
+              <SelectTrigger className="h-9 text-xs max-w-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(ARCHETYPE_LABELS) as [string, string][]).map(([key, label]) => (
+                  <SelectItem key={key} value={key} className="text-xs">{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
 
       {/* Power-user footer */}
       <div className="flex items-center justify-between mt-5 px-4 py-3 bg-muted/30 rounded-lg border border-border">
