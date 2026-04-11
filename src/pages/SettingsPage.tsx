@@ -130,8 +130,143 @@ const SettingRow: React.FC<{
     <div className="shrink-0 pt-0.5">{children}</div>
   </div>
 );
+// ── Plugin data ──
+type PluginStatus = 'available' | 'connected' | 'coming-soon';
+type PluginCategory = 'productivity' | 'communication' | 'ai-providers' | 'data' | 'dev-tools';
 
-const SettingsPage: React.FC = () => {
+interface PluginDef {
+  id: string;
+  name: string;
+  description: string;
+  helpText: string;
+  icon: React.ElementType;
+  category: PluginCategory;
+  status: PluginStatus;
+  setupLabel: string;
+  tags?: string[];
+}
+
+const PLUGINS: PluginDef[] = [
+  { id: 'google-calendar', name: 'Google Calendar', description: 'Let agents check your schedule and create events', helpText: 'Connect with your Google account.', icon: Calendar, category: 'productivity', status: 'available', setupLabel: 'Connect', tags: ['popular'] },
+  { id: 'google-docs', name: 'Google Docs', description: 'Read and write documents through your agents', helpText: 'Give agents access to Google Docs.', icon: FileText, category: 'productivity', status: 'coming-soon', setupLabel: 'Connect' },
+  { id: 'notion', name: 'Notion', description: 'Search, read, and update your Notion workspace', helpText: 'Connect your Notion workspace.', icon: Database, category: 'productivity', status: 'available', setupLabel: 'Add API key', tags: ['popular'] },
+  { id: 'gmail', name: 'Gmail', description: 'Draft and send emails on your behalf', helpText: 'Connect Gmail for email access.', icon: Mail, category: 'communication', status: 'available', setupLabel: 'Connect', tags: ['popular'] },
+  { id: 'slack', name: 'Slack', description: 'Post messages and read channels', helpText: 'Add Homeroom bot to Slack.', icon: MessageSquare, category: 'communication', status: 'available', setupLabel: 'Add to Slack' },
+  { id: 'discord', name: 'Discord', description: 'Send messages and monitor server activity', helpText: 'Add Homeroom bot to Discord.', icon: MessageSquare, category: 'communication', status: 'coming-soon', setupLabel: 'Add to Discord' },
+  { id: 'webhooks', name: 'Webhooks', description: 'Trigger agents from any external service', helpText: 'Create webhook URLs for automation.', icon: Bell, category: 'communication', status: 'available', setupLabel: 'Create webhook' },
+  { id: 'openai', name: 'OpenAI', description: 'GPT-4o, o1, and other OpenAI models', helpText: 'Add your OpenAI API key.', icon: Brain, category: 'ai-providers', status: 'available', setupLabel: 'Add API key', tags: ['popular'] },
+  { id: 'anthropic', name: 'Anthropic', description: 'Claude 3.5, Claude 4, and Haiku', helpText: 'Add your Anthropic API key.', icon: Brain, category: 'ai-providers', status: 'available', setupLabel: 'Add API key', tags: ['popular'] },
+  { id: 'google-ai', name: 'Google AI', description: 'Gemini 2.5 Pro, Flash, and more', helpText: 'Get a free key from Google AI Studio.', icon: Brain, category: 'ai-providers', status: 'available', setupLabel: 'Add API key' },
+  { id: 'openrouter', name: 'OpenRouter', description: 'Access many models with one key', helpText: 'Hundreds of models, one key.', icon: Cloud, category: 'ai-providers', status: 'available', setupLabel: 'Add API key', tags: ['recommended'] },
+  { id: 'ollama', name: 'Ollama (Local)', description: 'Run open-source models on your machine', helpText: 'Fully private, no API key needed.', icon: Zap, category: 'ai-providers', status: 'available', setupLabel: 'Detect', tags: ['local', 'free'] },
+  { id: 'web-browse', name: 'Web Browsing', description: 'Let agents search and read web pages', helpText: 'Agents can look things up online.', icon: Globe, category: 'data', status: 'available', setupLabel: 'Enable' },
+  { id: 'file-upload', name: 'File Upload', description: 'Give agents access to your uploaded files', helpText: 'Upload documents for agents to reference.', icon: FileText, category: 'data', status: 'available', setupLabel: 'Enable' },
+  { id: 'github', name: 'GitHub', description: 'Read repos, create issues, open PRs', helpText: 'Connect your GitHub account.', icon: GitBranch, category: 'dev-tools', status: 'coming-soon', setupLabel: 'Connect' },
+];
+
+const PLUGIN_CATEGORIES: { id: PluginCategory; label: string; icon: React.ElementType }[] = [
+  { id: 'ai-providers', label: 'AI Providers', icon: Brain },
+  { id: 'productivity', label: 'Productivity', icon: Calendar },
+  { id: 'communication', label: 'Communication', icon: MessageSquare },
+  { id: 'data', label: 'Data & Web', icon: Globe },
+  { id: 'dev-tools', label: 'Dev Tools', icon: GitBranch },
+];
+
+const PluginsSection: React.FC = () => {
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<PluginCategory | 'all'>('all');
+
+  const filtered = PLUGINS.filter(p => {
+    if (search) {
+      const q = search.toLowerCase();
+      if (!p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
+    }
+    if (selectedCategory !== 'all' && p.category !== selectedCategory) return false;
+    return true;
+  });
+
+  const handleConnect = (plugin: PluginDef) => {
+    toast.success(`${plugin.name} setup started`, { description: plugin.helpText });
+  };
+
+  return (
+    <section>
+      <h2 className="font-display font-semibold text-lg text-foreground mb-1 flex items-center gap-2">
+        <Plug className="w-4 h-4" /> Plugins & Connections
+      </h2>
+      <p className="text-xs text-muted-foreground mb-4">
+        Invite tools and services into your office. Each plugin gives your agents new abilities.
+      </p>
+
+      {/* Search + filters */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input placeholder="Search plugins..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-xs" />
+        </div>
+        <div className="flex gap-1 flex-wrap">
+          <button onClick={() => setSelectedCategory('all')} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedCategory === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}>All</button>
+          {PLUGIN_CATEGORIES.map(cat => (
+            <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedCategory === cat.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}>{cat.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Plugin list */}
+      <div className="space-y-3">
+        {PLUGIN_CATEGORIES.filter(cat => selectedCategory === 'all' || selectedCategory === cat.id).map(cat => {
+          const catPlugins = filtered.filter(p => p.category === cat.id);
+          if (catPlugins.length === 0) return null;
+          return (
+            <div key={cat.id}>
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <cat.icon className="w-3.5 h-3.5" /> {cat.label}
+              </p>
+              <div className="space-y-1.5">
+                {catPlugins.map(plugin => (
+                  <div key={plugin.id} className={`flex items-center gap-3 p-3 bg-muted rounded-lg transition-all ${plugin.status === 'coming-soon' ? 'opacity-50' : 'hover:bg-accent/50'}`}>
+                    <div className="w-8 h-8 rounded-md bg-background flex items-center justify-center shrink-0">
+                      <plugin.icon className="w-4 h-4 text-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-foreground">{plugin.name}</span>
+                        {plugin.tags?.includes('popular') && <Badge variant="secondary" className="text-[9px] px-1 py-0">Popular</Badge>}
+                        {plugin.tags?.includes('recommended') && <Badge className="text-[9px] px-1 py-0 bg-primary/10 text-primary border-primary/20">Recommended</Badge>}
+                        {plugin.tags?.includes('free') && <Badge variant="outline" className="text-[9px] px-1 py-0">Free</Badge>}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">{plugin.description}</p>
+                    </div>
+                    <div className="shrink-0">
+                      {plugin.status === 'connected' ? (
+                        <span className="text-[11px] text-primary flex items-center gap-1"><Check className="w-3 h-3" /> Connected</span>
+                      ) : plugin.status === 'coming-soon' ? (
+                        <Badge variant="outline" className="text-[9px]">Soon</Badge>
+                      ) : (
+                        <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => handleConnect(plugin)}>
+                          {plugin.setupLabel} <ChevronRight className="w-3 h-3 ml-0.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="text-center py-6">
+            <Search className="w-5 h-5 mx-auto text-muted-foreground mb-1" />
+            <p className="text-xs text-muted-foreground">No plugins match your search</p>
+            <Button variant="ghost" size="sm" className="mt-1 text-xs" onClick={() => { setSearch(''); setSelectedCategory('all'); }}>Clear filters</Button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
+
+
   const navigate = useNavigate();
   const modelConfig = useModelConfig();
   const store = useModelStore();
