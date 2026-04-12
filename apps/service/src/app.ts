@@ -36,6 +36,7 @@ import { buildTrustRoutes } from "./routes/trust.js";
 import { buildAuditRoutes } from "./routes/audit.js";
 import { buildFrontdeskRoutes } from "./routes/frontdesk.js";
 import { buildEventsRoutes } from "./routes/events.js";
+import { buildCredentialsRoutes } from "./routes/credentials.js";
 
 export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config) {
   const app = Fastify({
@@ -134,6 +135,7 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config) 
   await app.register(buildAuditRoutes(auditService));
   await app.register(buildFrontdeskRoutes(frontdeskService));
   await app.register(buildEventsRoutes());
+  await app.register(buildCredentialsRoutes());
 
   // Seed mock agents on first boot
   await agentService.importFromAdapter();

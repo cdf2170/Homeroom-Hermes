@@ -19,13 +19,19 @@ export async function createTestApp() {
     host: "127.0.0.1",
     dbPath: ":memory:",
     adapter: "mock",
+    hermesCliPath: "hermes",
+    hermesTimeoutSeconds: 120,
+    ollamaBaseUrl: "http://127.0.0.1:11434",
+    ollamaModel: "nous-hermes2",
+    cloudProvider: "openai",
+    cloudModel: "gpt-4o",
     logLevel: "silent",
   };
 
   const db = createDb(config.dbPath);
   migrate(db, { migrationsFolder });
 
-  const adapter = buildAdapter(config);
+  const adapter = await buildAdapter(config);
   const { app } = await buildApp(db, adapter, config);
   await app.ready();
   return app;

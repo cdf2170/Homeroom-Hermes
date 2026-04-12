@@ -1,5 +1,5 @@
 {
-  "name": "@homeroom/adapter-openclaw",
+  "name": "@homeroom/adapter-cloud",
   "version": "0.0.0",
   "private": true,
   "type": "module",

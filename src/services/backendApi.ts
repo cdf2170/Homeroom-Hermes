@@ -15,7 +15,7 @@
  * and updated optimistically on mutations.
  */
 
-import type { AgentSummaryView, RuntimeHealthView, SettingsView } from '@/types/views';
+import type { AgentSummaryView, AgentProfileView, RuntimeHealthView, SettingsView } from '@/types/views';
 import type { AgentState, OfficeZone } from '@/types/agent';
 
 const BASE = 'http://127.0.0.1:5174';
@@ -72,6 +72,7 @@ interface BackendAgent {
   lastRunStatus: string | null;
   scheduleSummary: string | null;
   trustPosture: string;
+  modelRef: string | null;
 }
 
 interface BackendHealth {
@@ -146,6 +147,7 @@ function mapAgent(a: BackendAgent): AgentSummaryView {
     runCount:           0,
     needsAttention:     a.trustPosture === 'critical' || a.trustPosture === 'warning',
     hasPermissions:     true,
+    modelRef:           a.modelRef ?? null,
   };
 }
 
@@ -161,15 +163,103 @@ function mapHealth(h: BackendHealth): RuntimeHealthView {
   };
 }
 
-function mapSettings(s: BackendSettings): Partial<SettingsView> {
+function mapSettings(s: BackendSettings & Record<string, unknown>): Partial<SettingsView> {
   return {
     defaultRuntime:           s.defaultRuntimeMode as SettingsView['defaultRuntime'],
-    requireApprovalByDefault: false,
-    backgroundOffByDefault:   false,
-    ambientAnimations:        true,
-    agentIdleAnimations:      true,
-    notifyOnAttention:        true,
-    notifyOnComplete:         true,
+    requireApprovalByDefault: (s.requireApprovalByDefault as boolean) ?? false,
+    backgroundOffByDefault:   (s.backgroundOffByDefault as boolean) ?? false,
+    ambientAnimations:        (s.ambientAnimations as boolean) ?? true,
+    agentIdleAnimations:      (s.agentIdleAnimations as boolean) ?? true,
+    notifyOnAttention:        (s.notifyOnAttention as boolean) ?? true,
+    notifyOnComplete:         (s.notifyOnComplete as boolean) ?? true,
+  };
+}
+
+// ── Backend detail/run shapes ─────────────────────────────────────────────────
+
+interface BackendDetailAgent extends BackendAgent {
+  role: string;
+  instructions: string;
+  audienceNotes: string;
+  environmentNotes: string;
+  memoryNotes: string;
+  checkInFrequency: string;
+  escalationBehavior: string;
+  taskStyle: string;
+  notifyOnComplete: boolean;
+  notifyOnError: boolean;
+  memoryItems: { id: string; content: string; category: string; pinned: boolean }[];
+  ruleItems: { id: string; content: string; priority: number; enabled: boolean }[];
+  permissionProfile: {
+    safetyLevel: string;
+    networkAccess: boolean;
+    networkAccessMode: string;
+    requiresApprovalFor: string[];
+    backgroundAllowed: boolean;
+    toolScopes: string[];
+    dataScopes: string[];
+  } | null;
+  schedule: { enabled: boolean; preset: string; plainEnglish: string; backendExpression: string | null; nextRunAt: string | null } | null;
+  runtime: { backendRef: string | null; workspacePath: string | null } | null;
+  trustFindings: { id: string; level: string; code: string; title: string; detail: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BackendRun {
+  id: string;
+  agentId: string;
+  trigger: string;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  inputSummary: string;
+  outputSummary: string;
+  errorSummary: string | null;
+}
+
+function mapAgentDetail(a: BackendDetailAgent): AgentProfileView {
+  const base = mapAgent(a);
+  return {
+    ...base,
+    role:               a.role ?? '',
+    personality:        a.instructions ?? '',
+    instructions:       a.instructions ?? '',
+    audienceNotes:      a.audienceNotes ?? '',
+    environmentNotes:   a.environmentNotes ?? '',
+    memoryNotes:        a.memoryNotes ?? '',
+    checkInFrequency:   (a.checkInFrequency as AgentProfileView['checkInFrequency']) ?? 'daily',
+    escalationBehavior: (a.escalationBehavior as AgentProfileView['escalationBehavior']) ?? 'notify',
+    taskStyle:          (a.taskStyle as AgentProfileView['taskStyle']) ?? 'balanced',
+    notifyOnComplete:   a.notifyOnComplete ?? true,
+    notifyOnError:      a.notifyOnError ?? true,
+    appearance:         { bodyType: 'masculine', skinTone: '#F5CBA7', hairStyle: 'short', hairColor: '#4A4A4A', outfitStyle: 'casual', outfitColor: base.outfitColor } as any,
+    defaultRoom:        base.zone,
+    permissionProfileId: a.permissionProfile ? 'persisted' : null,
+    activities:         [],
+    runs:               [],
+    permissions:        a.permissionProfile ? {
+      id:                  'persisted',
+      agentId:             a.id,
+      safetyLevel:         a.permissionProfile.safetyLevel as any,
+      toolScopes:          a.permissionProfile.toolScopes ?? [],
+      dataScopes:          a.permissionProfile.dataScopes ?? [],
+      networkAccess:       a.permissionProfile.networkAccess,
+      requiresApprovalFor: a.permissionProfile.requiresApprovalFor,
+      backgroundAllowed:   a.permissionProfile.backgroundAllowed,
+    } : null,
+    schedule:     a.schedule ? {
+      id:               'persisted',
+      agentId:          a.id,
+      enabled:          a.schedule.enabled,
+      preset:           a.schedule.preset as any,
+      plainEnglish:     a.schedule.plainEnglish,
+      backendExpression: a.schedule.backendExpression,
+      timezone:         'UTC',
+      nextRunAt:        a.schedule.nextRunAt ? new Date(a.schedule.nextRunAt) : null,
+    } : null,
+    memoryItems:   (a.memoryItems ?? []).map(m => ({ id: m.id, agentId: a.id, content: m.content, category: m.category as any, pinned: m.pinned, createdAt: new Date(), updatedAt: new Date() })),
+    ruleItems:     (a.ruleItems ?? []).map(r => ({ id: r.id, agentId: a.id, content: r.content, priority: r.priority as any, enabled: r.enabled, createdAt: new Date(), updatedAt: new Date() })),
   };
 }
 
@@ -221,6 +311,62 @@ export const backendApi = {
 
   /** Trigger a manual run. */
   async runAgent(id: string, input: string) {
-    return post(`/api/agents/${id}/run`, { input });
+    return post<BackendRun>(`/api/agents/${id}/run`, { input });
+  },
+
+  /** Fetch full agent detail (profile + permissions + schedule + memory + rules). */
+  async getAgent(id: string): Promise<AgentProfileView> {
+    const raw = await get<BackendDetailAgent>(`/api/agents/${id}`);
+    return mapAgentDetail(raw);
+  },
+
+  /** List runs for an agent. */
+  async listRuns(agentId: string): Promise<BackendRun[]> {
+    return get<BackendRun[]>(`/api/agents/${agentId}/runs`);
+  },
+
+  /** List audit events for an agent. */
+  async listActivity(agentId: string): Promise<{ id: string; eventType: string; summary: string; timestamp: string; actor: string }[]> {
+    return get(`/api/agents/${agentId}/activity`);
+  },
+
+  /** Fetch global audit log. */
+  async listAudit(limit = 100): Promise<{ id: string; eventType: string; summary: string; timestamp: string; actor: string; sourceMode: string; targetType: string; targetId: string; runId: string | null }[]> {
+    return get(`/api/audit?limit=${limit}`);
+  },
+
+  /** Fetch all runs across all agents. */
+  async listAllRuns(limit = 100): Promise<BackendRun[]> {
+    return get<BackendRun[]>(`/api/runs?limit=${limit}`);
+  },
+
+  /** Update settings — only sends fields the backend schema accepts. */
+  async updateSettings(updates: Partial<SettingsView>): Promise<Partial<SettingsView>> {
+    const body: Record<string, unknown> = {};
+    if (updates.defaultRuntime !== undefined) body.defaultRuntimeMode = updates.defaultRuntime;
+    // Other UI preferences are stored in localStorage via uiPrefsStore, not here.
+    const raw = await patch<BackendSettings & Record<string, unknown>>('/api/settings', body);
+    return mapSettings(raw);
+  },
+
+  /** Fetch trust findings across all agents. */
+  async listTrustFindings(): Promise<{ id: string; agentId: string; level: string; code: string; title: string; detail: string; resolvedAt: string | null }[]> {
+    const raw = await get<{ findings: { id: string; agentId: string; level: string; code: string; title: string; detail: string; resolvedAt: string | null }[] }>('/api/trust/findings');
+    return raw.findings ?? [];
+  },
+
+  /** Store an API key for a provider. */
+  async setCredential(provider: string, key: string): Promise<{ ok: boolean; masked: string }> {
+    return post(`/api/credentials/${provider}`, { key });
+  },
+
+  /** Delete a stored credential. */
+  async deleteCredential(provider: string): Promise<void> {
+    return del(`/api/credentials/${provider}`);
+  },
+
+  /** List all stored credentials (masked). */
+  async listCredentials(): Promise<{ provider: string; masked: string; updatedAt: string }[]> {
+    return get('/api/credentials');
   },
 };

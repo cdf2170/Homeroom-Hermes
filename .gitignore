@@ -30,3 +30,13 @@ dist-ssr
 
 # Nested repo clone (artifact from setup)
 Homeroom-OpenClaw/
+
+# Environment files
+.env
+.env.*
+
+# Claude Code memory
+.claude/
+
+# Encrypted credentials
+*.enc

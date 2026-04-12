@@ -46,7 +46,7 @@ export class MockOpenClawAdapter implements RuntimeAdapter {
     return agent;
   }
 
-  async runAgent(backendRef: string, _input: string): Promise<AdapterRunHandle> {
+  async runAgent(backendRef: string, _input: string, _modelRef?: string | null): Promise<AdapterRunHandle> {
     const runRef = `mock-run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const now = Date.now();
     const handle: MockRunState = {

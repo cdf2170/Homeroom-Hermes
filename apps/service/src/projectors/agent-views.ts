@@ -31,6 +31,7 @@ export function toAgentSummaryView(
     lastRunStatus: profile.lastRunStatus,
     scheduleSummary: profile.scheduleSummary,
     trustPosture: computePosture(findings),
+    modelRef: profile.modelRef ?? null,
   };
 }
 

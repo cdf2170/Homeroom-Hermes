@@ -36,6 +36,16 @@ export function createRunRepo(db: Db) {
       return row ? rowToRecord(row) : null;
     },
 
+    findAll(limit = 100): RunRecord[] {
+      return db
+        .select()
+        .from(runs)
+        .orderBy(desc(runs.startedAt))
+        .limit(limit)
+        .all()
+        .map(rowToRecord);
+    },
+
     findByAgentId(agentId: string, limit = 50): RunRecord[] {
       return db
         .select()

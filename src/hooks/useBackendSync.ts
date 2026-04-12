@@ -1,36 +1,52 @@
 /**
- * useBackendSync.ts
+ * useBackendSync — runs once on app boot.
  *
- * Called once from App.tsx on mount.
- * 1. Pings the backend
- * 2. If reachable → fetches real agents and replaces mock data in the store
- * 3. If unreachable → stays in demo mode with mock data
- *
- * This is the only place that decides "real vs demo".
- * Everything else in the app just reads from the stores as normal.
+ * First-time users (no `homeroom-onboarded` flag) → /onboarding
+ * Returning users with backend down               → /setup?issue=service&returning=true
+ * Returning users with hermes not installed       → /setup?issue=runtime&returning=true
+ * Healthy returning users                         → nothing (app runs normally)
  */
 
 import { useEffect } from 'react';
-import { probeBackend } from '@/lib/connection';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { backendApi } from '@/services/backendApi';
-import { setAgentsFromBackend } from '@/store/agentStore';
+import { hasCompletedOnboarding } from '@/pages/OnboardingPage';
+
+const SETUP_ROUTE = '/setup';
+const ONBOARDING_ROUTE = '/onboarding';
+
+// Routes that are part of the setup flow — skip health check on these
+const SKIP_CHECK_ROUTES = [SETUP_ROUTE, ONBOARDING_ROUTE, '/security-setup'];
 
 export function useBackendSync() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   useEffect(() => {
-    async function init() {
-      const connected = await probeBackend();
-      if (!connected) {
-        console.info('[Homeroom] Backend not reachable — running in demo mode');
+    if (SKIP_CHECK_ROUTES.includes(location.pathname)) return;
+
+    // First-time user: show onboarding intro before any install steps
+    if (!hasCompletedOnboarding()) {
+      navigate(ONBOARDING_ROUTE, { replace: true });
+      return;
+    }
+
+    async function check() {
+      let health;
+      try {
+        health = await backendApi.getHealth();
+      } catch {
+        navigate(`${SETUP_ROUTE}?issue=service&returning=true`, { replace: true });
         return;
       }
-      console.info('[Homeroom] Backend connected — loading real data');
-      try {
-        const agents = await backendApi.listAgents();
-        setAgentsFromBackend(agents);
-      } catch (err) {
-        console.warn('[Homeroom] Failed to load agents from backend:', err);
+
+      if (!health.gatewayReachable) {
+        navigate(`${SETUP_ROUTE}?issue=runtime&returning=true`, { replace: true });
       }
     }
-    init();
-  }, []);
+
+    check();
+    const interval = setInterval(check, 30_000);
+    return () => clearInterval(interval);
+  }, [location.pathname]);
 }

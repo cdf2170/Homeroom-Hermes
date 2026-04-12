@@ -129,5 +129,11 @@ export function buildAgentRoutes(
       const findings = trustService.findingsForAgent(req.params.id);
       return reply.send(findings);
     });
+
+    // GET /api/runs — global run history across all agents
+    app.get<{ Querystring: { limit?: string } }>("/api/runs", async (req, reply) => {
+      const limit = req.query.limit ? parseInt(req.query.limit, 10) : 100;
+      return reply.send(runService.listAll(limit).map(toRunView));
+    });
   };
 }

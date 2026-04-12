@@ -26,6 +26,7 @@ export const AgentSummaryView = z.object({
   lastRunStatus: RunStatus.nullable(),
   scheduleSummary: z.string().nullable(),
   trustPosture: TrustLevel,
+  modelRef: z.string().nullable().optional(),
 });
 
 export type AgentSummaryView = z.infer<typeof AgentSummaryView>;

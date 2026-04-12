@@ -1,265 +1,285 @@
 import React, { useState } from 'react';
-import { Inbox, CheckCircle2, RotateCcw, Clock, Sparkles } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import { Inbox, CheckCircle2, RotateCcw, Clock, ChevronRight, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { toast } from 'sonner';
+import { useAgents } from '@/store/agentStore';
+
+type ReviewStatus = 'awaiting' | 'approved' | 'sent-back';
 
 interface WorkItem {
   id: string;
+  agentId: string;
   agentName: string;
-  agentInitial: string;
   agentColor: string;
-  approvalRate: number;
   taskTitle: string;
-  input: string;
-  output: string;
   completedAt: Date;
-  status: 'awaiting' | 'approved' | 'sent-back';
+  output: string;
+  status: ReviewStatus;
   feedback?: string;
-  isCode?: boolean;
 }
 
-const INITIAL_ITEMS: WorkItem[] = [
+const MOCK_ITEMS: WorkItem[] = [
   {
     id: '1',
+    agentId: 'scout',
     agentName: 'Scout',
-    agentInitial: 'S',
-    agentColor: 'hsl(210, 60%, 50%)',
-    approvalRate: 87,
-    taskTitle: 'Summarize Q2 marketing report',
-    input: 'Read the attached Q2 marketing report and produce a 3-paragraph executive summary.',
-    output: `The Q2 marketing campaign achieved a 23% increase in qualified leads compared to Q1, driven primarily by the new content strategy targeting mid-market SaaS buyers. Email open rates improved to 34% after subject-line A/B testing was introduced in April.\n\nPaid acquisition costs decreased by 11% due to better audience segmentation on LinkedIn and Google Ads. The team successfully launched two webinar series that generated 450 registrations combined, with a 62% attendance rate.\n\nKey risks include over-reliance on a single channel (LinkedIn accounts for 48% of pipeline) and the upcoming privacy changes in Chrome that may impact retargeting effectiveness in Q3.`,
+    agentColor: '#4A6FA5',
+    taskTitle: 'Research top AI tools released in Q1 2026',
     completedAt: new Date(Date.now() - 35 * 60 * 1000),
+    output: `Here's a summary of the top AI tools released in Q1 2026:\n\n1. **Gemini Ultra 2** — Google's multimodal flagship. Strongest at long-context document analysis and real-time video understanding.\n\n2. **Claude 4 Opus** — Anthropic's reasoning model. Significantly better at multi-step planning tasks and code generation.\n\n3. **Llama 4 Scout** — Meta's 17B MoE model. Runs locally on consumer hardware. Best-in-class for edge deployment.\n\n4. **Mistral Large 3** — Strong European alternative. GDPR-compliant by design, popular in enterprise settings.\n\nWant me to go deeper on any of these?`,
     status: 'awaiting',
   },
   {
     id: '2',
+    agentId: 'pepper',
     agentName: 'Pepper',
-    agentInitial: 'P',
-    agentColor: 'hsl(340, 60%, 50%)',
-    approvalRate: 94,
-    taskTitle: 'Draft onboarding email sequence',
-    input: 'Write a 3-email welcome sequence for new trial users.',
-    output: `Email 1 — Welcome & Quick Win (Day 0)\nSubject: You're in! Here's the fastest way to see results.\n\nHey {{first_name}},\n\nWelcome aboard. Most people get their first win in under 5 minutes — here's how...\n\nEmail 2 — Feature Spotlight (Day 2)\nSubject: The one feature 80% of power users swear by.\n\nEmail 3 — Social Proof + CTA (Day 5)\nSubject: "This saved us 6 hours a week" — here's what they did.`,
-    completedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+    agentColor: '#5B8C5A',
+    taskTitle: 'Organize this week\'s meeting notes into action items',
+    completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    output: `Action items from this week's meetings:\n\n**Monday standup:**\n- [ ] Deploy new auth middleware to staging — due Thursday\n- [ ] Review open PRs before EOD\n\n**Wednesday product sync:**\n- [ ] Finalize Q2 roadmap doc — owner: you\n- [ ] Schedule user interviews for next sprint\n- [ ] Update pricing page copy\n\n**Friday retro:**\n- [ ] Add automated test for the checkout flow\n- [ ] Move staging infra to new region`,
     status: 'approved',
-    feedback: 'Great tone — ship it as-is.',
   },
   {
     id: '3',
+    agentId: 'helper',
     agentName: 'Research Helper',
-    agentInitial: 'R',
-    agentColor: 'hsl(160, 50%, 40%)',
-    approvalRate: 72,
-    taskTitle: 'Compare auth providers for the new project',
-    input: 'Research and compare Clerk, Auth0, and Supabase Auth for a B2B SaaS product.',
-    output: `## Auth Provider Comparison\n\n| Feature | Clerk | Auth0 | Supabase Auth |\n|---------|-------|-------|---------------|\n| Pricing | Free to 10k MAU | Free to 7.5k MAU | Free tier available |\n| SSO | Yes (paid) | Yes (paid) | Community |\n| React SDK | Excellent | Good | Good |\n\nRecommendation: Clerk for developer experience, Auth0 for enterprise features.`,
-    completedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    agentColor: '#9B59B6',
+    taskTitle: 'Draft a cold email for outreach to indie hackers',
+    completedAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
+    output: `Subject: Quick question about your workflow\n\nHey [Name],\n\nI came across your project [Project] and loved what you're building.\n\nI'm working on Homeroom — a local control plane for AI agents. Think of it like a Sims-style office where your agents do real work.\n\nWould love to show you a demo. 15 minutes?\n\n— Odin`,
     status: 'sent-back',
-    isCode: true,
-    feedback: 'Missing latency benchmarks and self-hosted options. Please add a section on Keycloak as well.',
+    feedback: 'Too generic. Make it more specific to what they actually built. Reference something real.',
   },
 ];
 
-function timeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min${minutes > 1 ? 's' : ''} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} day${days > 1 ? 's' : ''} ago`;
-}
+const timeAgo = (date: Date) => {
+  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+};
 
-const StatusBadge = ({ status }: { status: WorkItem['status'] }) => {
-  const config = {
-    awaiting: { label: 'Awaiting Review', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
-    approved: { label: 'Approved', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
-    'sent-back': { label: 'Sent Back', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
-  };
-  const c = config[status];
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${c.className}`}>{c.label}</span>;
+const statusConfig: Record<ReviewStatus, { label: string; className: string }> = {
+  awaiting: { label: 'Awaiting Review', className: 'bg-status-waiting/15 text-status-waiting border-none' },
+  approved: { label: 'Approved', className: 'bg-status-working/15 text-status-working border-none' },
+  'sent-back': { label: 'Sent Back', className: 'bg-destructive/10 text-destructive border-none' },
+};
+
+const AgentInitials = ({ name, color }: { name: string; color: string }) => (
+  <div
+    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+    style={{ backgroundColor: color }}
+  >
+    {name.slice(0, 2).toUpperCase()}
+  </div>
+);
+
+const ReviewPanel = ({
+  item,
+  onApprove,
+  onSendBack,
+  onClose,
+}: {
+  item: WorkItem;
+  onApprove: () => void;
+  onSendBack: (feedback: string) => void;
+  onClose: () => void;
+}) => {
+  const [feedback, setFeedback] = useState('');
+
+  return (
+    <div className="flex flex-col h-full border-l border-border bg-background">
+      {/* Header */}
+      <div className="p-5 border-b border-border">
+        <div className="flex items-center gap-3 mb-1">
+          <AgentInitials name={item.agentName} color={item.agentColor} />
+          <div>
+            <p className="font-semibold text-sm text-foreground">{item.agentName}</p>
+            <p className="text-xs text-muted-foreground">{item.taskTitle}</p>
+          </div>
+          <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          <Badge className={statusConfig[item.status].className}>{statusConfig[item.status].label}</Badge>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Clock className="w-3 h-3" /> {timeAgo(item.completedAt)}
+          </span>
+        </div>
+      </div>
+
+      {/* Output */}
+      <div className="flex-1 overflow-y-auto p-5">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-3">Output</p>
+        <div className="bg-muted rounded-xl p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed font-mono text-xs">
+          {item.output}
+        </div>
+
+        {item.feedback && (
+          <div className="mt-4 p-3 bg-destructive/5 border border-destructive/20 rounded-xl">
+            <p className="text-[10px] font-semibold text-destructive uppercase tracking-wide mb-1">Previous feedback</p>
+            <p className="text-xs text-foreground">{item.feedback}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Review actions */}
+      {item.status === 'awaiting' && (
+        <div className="p-5 border-t border-border space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" /> Your feedback
+            </p>
+            <Textarea
+              value={feedback}
+              onChange={e => setFeedback(e.target.value)}
+              placeholder="What worked well, or what should they change?"
+              className="text-sm resize-none h-20"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={onApprove}
+              className="flex-1 bg-status-working hover:bg-status-working/90 text-white"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Approve
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => feedback.trim() && onSendBack(feedback)}
+              disabled={!feedback.trim()}
+              className="flex-1"
+            >
+              <RotateCcw className="w-4 h-4" /> Send Back
+            </Button>
+          </div>
+          {!feedback.trim() && (
+            <p className="text-[10px] text-muted-foreground text-center">Add feedback to send back for rework</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const DoneWorkPage: React.FC = () => {
-  const [items, setItems] = useState<WorkItem[]>(INITIAL_ITEMS);
-  const [reviewId, setReviewId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState('');
+  const [filter, setFilter] = useState<ReviewStatus | 'all'>('awaiting');
+  const [items, setItems] = useState<WorkItem[]>(MOCK_ITEMS);
+  const [selected, setSelected] = useState<string | null>(null);
 
-  const reviewItem = items.find((i) => i.id === reviewId);
+  const filtered = filter === 'all' ? items : items.filter(i => i.status === filter);
+  const awaiting = items.filter(i => i.status === 'awaiting').length;
+  const approved = items.filter(i => i.status === 'approved').length;
+  const sentBack = items.filter(i => i.status === 'sent-back').length;
 
-  const counts = {
-    awaiting: items.filter((i) => i.status === 'awaiting').length,
-    approved: items.filter((i) => i.status === 'approved').length,
-    sentBack: items.filter((i) => i.status === 'sent-back').length,
+  const selectedItem = items.find(i => i.id === selected) ?? null;
+
+  const handleApprove = (id: string) => {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'approved' } : i));
+    setSelected(null);
   };
 
-  const handleApprove = () => {
-    if (!reviewId) return;
-    setItems((prev) => prev.map((i) => (i.id === reviewId ? { ...i, status: 'approved' as const, feedback: feedback || i.feedback } : i)));
-    setReviewId(null);
-    setFeedback('');
-    toast.success('Work approved — nice job, team.');
+  const handleSendBack = (id: string, feedback: string) => {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'sent-back', feedback } : i));
+    setSelected(null);
   };
 
-  const handleSendBack = () => {
-    if (!reviewId || !feedback.trim()) {
-      toast.error('Add some feedback so the agent knows what to improve.');
-      return;
-    }
-    setItems((prev) => prev.map((i) => (i.id === reviewId ? { ...i, status: 'sent-back' as const, feedback } : i)));
-    setReviewId(null);
-    setFeedback('');
-    toast('Sent back with your notes. A new run will be created.');
-  };
-
-  const openReview = (id: string) => {
-    const item = items.find((i) => i.id === id);
-    setFeedback(item?.feedback || '');
-    setReviewId(id);
-  };
-
-  const renderCards = (filtered: WorkItem[]) => {
-    if (filtered.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
-            <Sparkles className="w-6 h-6 text-muted-foreground" />
-          </div>
-          <p className="text-muted-foreground text-sm font-medium">All clear — nothing on your desk right now.</p>
-          <p className="text-muted-foreground/60 text-xs mt-1">Your agents are working on it.</p>
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-3">
-        {filtered.map((item) => (
-          <div key={item.id} className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-start gap-4">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 mt-0.5"
-              style={{ backgroundColor: item.agentColor }}
-            >
-              {item.agentInitial}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-semibold text-foreground">{item.agentName}</span>
-                <StatusBadge status={item.status} />
-                <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{timeAgo(item.completedAt)}</span>
-              </div>
-              <p className="text-sm font-medium text-foreground/90 mb-1">{item.taskTitle}</p>
-              <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{item.output.slice(0, 180)}…</p>
-            </div>
-            <Button variant="outline" size="sm" className="shrink-0 mt-1" onClick={() => openReview(item.id)}>
-              Review
-            </Button>
-          </div>
-        ))}
-      </div>
-    );
-  };
+  const FILTERS: { key: ReviewStatus | 'all'; label: string; count?: number }[] = [
+    { key: 'awaiting', label: 'Awaiting Review', count: awaiting },
+    { key: 'approved', label: 'Approved', count: approved },
+    { key: 'sent-back', label: 'Sent Back', count: sentBack },
+  ];
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Inbox className="w-5 h-5 text-primary" />
-          <h1 className="text-xl font-bold text-foreground">Done Work</h1>
+    <div className="h-full flex">
+      {/* Left panel */}
+      <div className={`flex flex-col ${selectedItem ? 'w-1/2' : 'w-full'} transition-all`}>
+        {/* Header */}
+        <div className="p-6 pb-0">
+          <div className="flex items-center gap-2 mb-1">
+            <Inbox className="w-5 h-5 text-primary" />
+            <h1 className="font-display font-bold text-2xl text-foreground">Done Work</h1>
+          </div>
+          <p className="text-sm text-muted-foreground mb-5">
+            Your team's completed tasks, waiting for your verdict.
+          </p>
+
+          {/* Filter tabs */}
+          <div className="flex gap-1 border-b border-border">
+            {FILTERS.map(f => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`px-3 py-2 text-xs font-medium transition-colors relative ${
+                  filter === f.key
+                    ? 'text-foreground border-b-2 border-primary -mb-px'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {f.label}
+                {f.count !== undefined && f.count > 0 && (
+                  <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    f.key === 'awaiting' ? 'bg-status-waiting/20 text-status-waiting' : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {f.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground">Your team's completed tasks, waiting for your verdict.</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">
-          {counts.awaiting} awaiting review · {counts.approved} approved · {counts.sentBack} sent back
-        </p>
+
+        {/* Items */}
+        <div className="flex-1 overflow-y-auto p-6 pt-4 space-y-3">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center">
+              <CheckCircle2 className="w-10 h-10 text-muted-foreground/30 mb-3" />
+              <p className="text-sm text-muted-foreground font-medium">All clear</p>
+              <p className="text-xs text-muted-foreground">Nothing on your desk right now.</p>
+            </div>
+          ) : (
+            filtered.map(item => (
+              <div
+                key={item.id}
+                onClick={() => setSelected(item.id === selected ? null : item.id)}
+                className={`p-4 bg-card border rounded-xl cursor-pointer transition-all hover:shadow-sm ${
+                  selected === item.id ? 'border-primary/50 shadow-sm' : 'border-border'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <AgentInitials name={item.agentName} color={item.agentColor} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-sm font-semibold text-foreground truncate">{item.taskTitle}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">{item.agentName} · {timeAgo(item.completedAt)}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{item.output.slice(0, 120)}…</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <Badge className={statusConfig[item.status].className + ' text-[10px]'}>
+                      {statusConfig[item.status].label}
+                    </Badge>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/40" />
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="awaiting">
-        <TabsList>
-          <TabsTrigger value="awaiting" className="gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            Awaiting Review
-            {counts.awaiting > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1.5 text-[10px]">{counts.awaiting}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="approved" className="gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Approved
-          </TabsTrigger>
-          <TabsTrigger value="sent-back" className="gap-1.5">
-            <RotateCcw className="w-3.5 h-3.5" />
-            Sent Back
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="awaiting" className="mt-4">{renderCards(items.filter((i) => i.status === 'awaiting'))}</TabsContent>
-        <TabsContent value="approved" className="mt-4">{renderCards(items.filter((i) => i.status === 'approved'))}</TabsContent>
-        <TabsContent value="sent-back" className="mt-4">{renderCards(items.filter((i) => i.status === 'sent-back'))}</TabsContent>
-      </Tabs>
-
-      {/* Review Sheet */}
-      <Sheet open={!!reviewId} onOpenChange={(open) => { if (!open) { setReviewId(null); setFeedback(''); } }}>
-        <SheetContent className="sm:max-w-lg overflow-y-auto">
-          {reviewItem && (
-            <div className="space-y-6 pt-2">
-              <SheetHeader className="pb-0">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
-                    style={{ backgroundColor: reviewItem.agentColor }}
-                  >
-                    {reviewItem.agentInitial}
-                  </div>
-                  <div>
-                    <SheetTitle className="text-base">{reviewItem.agentName}</SheetTitle>
-                    <p className="text-xs text-muted-foreground">{reviewItem.approvalRate}% approval rate</p>
-                  </div>
-                </div>
-              </SheetHeader>
-
-              <div>
-                <p className="text-xs text-muted-foreground mb-1 font-medium">Task</p>
-                <p className="text-sm text-foreground font-medium">{reviewItem.taskTitle}</p>
-                <p className="text-xs text-muted-foreground mt-1">{reviewItem.input}</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground mb-2 font-medium">Output</p>
-                <div className={`rounded-lg border border-border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap ${reviewItem.isCode ? 'font-mono text-xs' : ''}`}>
-                  {reviewItem.output}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground mb-2 font-medium">Your feedback</p>
-                <Textarea
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  placeholder="What should they do differently, or what worked well?"
-                  className="min-h-[80px] text-sm"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button onClick={handleApprove} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
-                </Button>
-                <Button variant="outline" onClick={handleSendBack} className="flex-1">
-                  <RotateCcw className="w-4 h-4 mr-1" /> Send Back
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground/60 text-center">
-                {reviewItem.agentName} will receive your notes and try again.
-              </p>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+      {/* Right panel — review */}
+      {selectedItem && (
+        <div className="w-1/2 flex flex-col">
+          <ReviewPanel
+            item={selectedItem}
+            onApprove={() => handleApprove(selectedItem.id)}
+            onSendBack={(fb) => handleSendBack(selectedItem.id, fb)}
+            onClose={() => setSelected(null)}
+          />
+        </div>
+      )}
     </div>
   );
 };

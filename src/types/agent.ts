@@ -52,7 +52,7 @@ export interface RuleItem {
 export interface AgentAppearance {
   id?: string;
   agentId?: string;
-  bodyType: 'masculine' | 'feminine' | 'androgynous';
+  bodyType: 'masculine' | 'feminine';
   skinTone: string;
   hairStyle: 'short' | 'long' | 'curly' | 'buzz' | 'ponytail' | 'bun' | 'mohawk' | 'braids' | 'wavy' | 'afro' | 'shaved';
   hairColor: string;
@@ -178,6 +178,9 @@ export interface Agent {
   // Structured memory & rules
   memoryItems: MemoryItem[];
   ruleItems: RuleItem[];
+  // Workspace & Obsidian integration
+  workspacePath: string | null;       // Path to OpenClaw/Hermes workspace on disk
+  obsidianVaultPath: string | null;   // Path to linked Obsidian vault (may be same as workspacePath)
 }
 
 // === Agent Template ===
@@ -293,7 +296,7 @@ export const VIBE_LABELS: Record<Vibe, string> = {
 };
 
 export const DEFAULT_APPEARANCE: AgentAppearance = {
-  bodyType: 'androgynous',
+  bodyType: 'masculine',
   skinTone: '#FDDBB4',
   hairStyle: 'short',
   hairColor: '#3B2716',

@@ -27,6 +27,7 @@ export interface AgentSummaryView {
   runCount: number;
   needsAttention: boolean;
   hasPermissions: boolean;
+  modelRef: string | null;
 }
 
 // ── Full profile view ──

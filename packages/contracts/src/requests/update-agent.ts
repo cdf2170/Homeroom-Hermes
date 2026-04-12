@@ -24,6 +24,9 @@ export const UpdateAgentRequest = z
     taskStyle: z.enum(["methodical", "exploratory", "minimal"]),
     notifyOnComplete: z.boolean(),
     notifyOnError: z.boolean(),
+
+    // Model selection (e.g. "anthropic/claude-3.5-sonnet")
+    modelRef: z.string().nullable(),
   })
   .partial();
 

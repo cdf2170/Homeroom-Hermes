@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useAgents } from '@/store/agentStore';
+import { useAgents as useAgentsStore } from '@/store/agentStore';
+import { useAgents as useAgentsQuery, useAllRuns, useTrustFindings } from '@/hooks/api/useAgents';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -123,7 +124,11 @@ function analyzeRisks(agents: Agent[]): Finding[] {
 // ── Main Page ──
 
 const ActivityTrustPage: React.FC = () => {
-  const agents = useAgents();
+  // Store agents: full Agent type needed for risk analysis (permissions, ruleItems, etc.)
+  const agents = useAgentsStore();
+  // Query agents: AgentSummaryView from backend — used for agent name/color lookup in runs tab
+  const { data: queryAgents = [] } = useAgentsQuery();
+  const { data: backendRuns = [] } = useAllRuns();
   const navigate = useNavigate();
   const loading = useSimulatedLoading(400);
 
@@ -134,12 +139,33 @@ const ActivityTrustPage: React.FC = () => {
   const [trustSearch, setTrustSearch] = useState('');
   const [trustLevel, setTrustLevel] = useState<'all' | 'warning' | 'info'>('all');
 
-  // Runs data
+  // Build a lookup map for agent name + color from backend data
+  const agentLookup = useMemo(
+    () => new Map(queryAgents.map(a => [a.id, a])),
+    [queryAgents],
+  );
+
+  // Runs data — from backend, joined with agent info
   const allRuns = useMemo(() =>
-    agents
-      .flatMap(a => a.runs.map(r => ({ ...r, agentName: a.name, agentColor: a.appearance.outfitColor, agentId: a.id })))
+    backendRuns
+      .map(r => {
+        const a = agentLookup.get(r.agentId);
+        return {
+          id:            r.id,
+          agentId:       r.agentId,
+          agentName:     a?.name ?? 'Unknown',
+          agentColor:    (a as any)?.outfitColor ?? '#6366f1',
+          status:        r.status,
+          trigger:       r.trigger,
+          inputSummary:  r.inputSummary,
+          outputSummary: r.outputSummary || null,
+          errorSummary:  r.errorSummary,
+          startedAt:     new Date(r.startedAt),
+          finishedAt:    r.finishedAt ? new Date(r.finishedAt) : null,
+        };
+      })
       .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime()),
-    [agents]
+    [backendRuns, agentLookup],
   );
 
   const filteredRuns = useMemo(() => {
@@ -153,8 +179,22 @@ const ActivityTrustPage: React.FC = () => {
     return result;
   }, [allRuns, statusFilter, agentFilter, search]);
 
-  // Trust data
-  const findings = useMemo(() => analyzeRisks(agents), [agents]);
+  // Trust data — local analysis + backend persisted findings merged
+  const { data: backendFindings = [] } = useTrustFindings();
+  const localFindings = useMemo(() => analyzeRisks(agents), [agents]);
+  const findings = useMemo(() => {
+    const fromBackend: Finding[] = backendFindings.map(f => ({
+      id: f.id,
+      level: (f.level as Finding['level']) ?? 'info',
+      title: f.title,
+      detail: f.detail,
+      agentId: f.agentId,
+      agentName: agents.find(a => a.id === f.agentId)?.name,
+    }));
+    // Deduplicate: backend findings take precedence over local ones with the same id
+    const backendIds = new Set(fromBackend.map(f => f.id));
+    return [...fromBackend, ...localFindings.filter(f => !backendIds.has(f.id))];
+  }, [backendFindings, localFindings, agents]);
   const warnings = findings.filter(f => f.level === 'warning' || f.level === 'risk');
   const infos = findings.filter(f => f.level === 'info');
   const allGood = warnings.length === 0;
@@ -253,7 +293,7 @@ const ActivityTrustPage: React.FC = () => {
               >
                 All agents
               </button>
-              {agents.map(a => (
+              {queryAgents.map(a => (
                 <button
                   key={a.id}
                   onClick={() => setAgentFilter(a.id)}
@@ -261,7 +301,7 @@ const ActivityTrustPage: React.FC = () => {
                     agentFilter === a.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: a.appearance.outfitColor }} />
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: (a as any).outfitColor ?? '#6366f1' }} />
                   {a.name}
                 </button>
               ))}

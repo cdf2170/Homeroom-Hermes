@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useAgents } from '@/store/agentStore';
+import { useAgents as useAgentsStore } from '@/store/agentStore';
+import { useAgents as useAgentsQuery } from '@/hooks/api/useAgents';
 import { STATE_LABELS } from '@/types/agent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,7 +45,10 @@ const FILTERS: { id: FilterType; label: string }[] = [
 ];
 
 const AgentsPage: React.FC = () => {
-  const agents = useAgents();
+  const query = useAgentsQuery();
+  const storeAgents = useAgentsStore();
+  // Prefer live backend data; fall back to store (mock/demo) when backend is unreachable
+  const agents = query.data ?? storeAgents;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialFilter = searchParams.get('filter') as FilterType | null;
@@ -128,7 +132,7 @@ const AgentsPage: React.FC = () => {
             >
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold text-primary-foreground shadow-sm relative shrink-0"
-                style={{ backgroundColor: agent.appearance.outfitColor }}
+                style={{ backgroundColor: (agent as any).appearance?.outfitColor ?? (agent as any).outfitColor ?? '#6366f1' }}
               >
                 {agent.name[0]}
                 <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${stateColor(agent.state)}`} />
@@ -160,9 +164,9 @@ const AgentsPage: React.FC = () => {
                 {agent.lastRunAt && (
                   <span className="text-[10px] text-muted-foreground">Last run {timeAgo(agent.lastRunAt)}</span>
                 )}
-                {agent.schedule && (
+                {(agent as any).scheduleSummary && (
                   <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {agent.schedule.plainEnglish}
+                    <Clock className="w-3 h-3" /> {(agent as any).scheduleSummary}
                   </span>
                 )}
                 {agent.lastRunStatus === 'failed' && (

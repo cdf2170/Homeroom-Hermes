@@ -38,6 +38,7 @@ function rowToProfile(row: AgentRow): AgentProfile {
     taskStyle: row.taskStyle as AgentProfile["taskStyle"],
     notifyOnComplete: row.notifyOnComplete,
     notifyOnError: row.notifyOnError,
+    modelRef: row.modelRef ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

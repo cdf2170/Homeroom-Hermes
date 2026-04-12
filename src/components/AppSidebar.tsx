@@ -1,16 +1,15 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Building2, Users, Activity, Settings, ClipboardCheck, Inbox } from 'lucide-react';
+import { Building2, Users, Activity, Settings, Inbox, CheckSquare } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { getPendingCount } from '@/store/approvalStore';
 
 const NAV_ITEMS = [
-  { to: '/', icon: Home, label: 'Home' },
-  { to: '/office', icon: Building2, label: 'Office' },
+  { to: '/', icon: Building2, label: 'The Office' },
+  { to: '/approvals', icon: Inbox, label: 'Your Desk' },
+  { to: '/done-work', icon: CheckSquare, label: 'Done Work' },
   { to: '/agents', icon: Users, label: 'Agents' },
   { to: '/activity', icon: Activity, label: 'Activity & Trust' },
-  { to: '/done-work', icon: Inbox, label: 'Done Work' },
-  { to: '/approvals', icon: ClipboardCheck, label: 'Approvals' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

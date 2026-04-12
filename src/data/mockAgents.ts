@@ -13,6 +13,8 @@ const newFields = {
   memoryNotes: '',
   memoryItems: [] as import('@/types/agent').MemoryItem[],
   ruleItems: [] as import('@/types/agent').RuleItem[],
+  workspacePath: null,
+  obsidianVaultPath: null,
 };
 
 export const mockAgents: Agent[] = [
@@ -82,6 +84,8 @@ export const mockAgents: Agent[] = [
       backgroundAllowed: false,
     },
     schedule: null,
+    workspacePath: null,
+    obsidianVaultPath: null,
   },
   {
     id: '2',
@@ -277,6 +281,8 @@ export const mockAgents: Agent[] = [
     ],
     permissions: null,
     schedule: null,
+    workspacePath: null,
+    obsidianVaultPath: null,
   },
   {
     id: '5',
@@ -332,6 +338,8 @@ export const mockAgents: Agent[] = [
     runs: [],
     permissions: null,
     schedule: null,
+    workspacePath: null,
+    obsidianVaultPath: null,
   },
 ];
 

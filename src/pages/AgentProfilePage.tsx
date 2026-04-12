@@ -2,32 +2,29 @@ import React, { useState, useEffect } from 'react';
 import AvatarPreview from '@/components/AvatarPreview';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAgents, updateAgent, removeAgent } from '@/store/agentStore';
+import { useAgent, useAgentRuns, useRunAgent, useUpdateAgent, useDeleteAgent } from '@/hooks/api/useAgents';
 import {
-  ArrowLeft, User, FileText, Sparkles, Brain, Shield, Clock, Activity,
-  Settings, Play, Pause, Trash2, Power, PowerOff, Cpu, Cloud, Zap, Target,
-  AlertTriangle, Pencil, Check, Plus, X, ChevronDown, ChevronUp,
-  BookOpen, Wrench, Database, Users, RefreshCw, Copy, Rocket,
-  Heart, Lightbulb, Bookmark, StickyNote, Pin, CheckCircle2, XCircle,
-  MessageSquare, Calendar, Eye, EyeOff,
+  ArrowLeft, User, FileText, Shield, Clock,
+  Play, Pause, Trash2, Cpu, Cloud, Zap,
+  AlertTriangle, Pencil, Check, Plus, X,
+  RefreshCw, Copy, CheckCircle2, XCircle,
+  Calendar, FolderOpen, BookMarked, Terminal, GitBranch, FileCode, Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialog, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Agent, AgentState, OfficeZone, STATE_LABELS, ARCHETYPE_LABELS, VIBE_LABELS,
-  Archetype, Vibe, SmartLevel, RuntimeMode, MemoryItem, RuleItem, RulePriority,
-  CheckInFrequency, EscalationBehavior, TaskStyle, ROOM_BOUNDS,
+  Agent, AgentState, OfficeZone, STATE_LABELS,
+  RulePriority,
   AgentAppearance,
 } from '@/types/agent';
 import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getPendingForAgent, resolveApproval } from '@/store/approvalStore';
 import { CATEGORY_LABELS } from '@/types/approval';
 import { addAgent } from '@/store/agentStore';
@@ -53,30 +50,124 @@ const stateColor = (state: string) => {
   }
 };
 
+// Soft background variant for pills/chips. Kept as full literal class names so
+// Tailwind's JIT can statically detect them — interpolating like `${stateColor}/10`
+// silently produces no background.
+const stateSoftBg = (state: string) => {
+  switch (state) {
+    case 'working': return 'bg-status-working/10 text-status-working';
+    case 'on-break': return 'bg-status-break/10 text-status-break';
+    case 'waiting': case 'needs-attention': return 'bg-status-waiting/10 text-status-waiting';
+    case 'sleeping': case 'offline': return 'bg-status-offline/10 text-muted-foreground';
+    default: return 'bg-status-idle/10 text-muted-foreground';
+  }
+};
+
 // ── Section navigation ──
 
 const SECTIONS = [
-  { id: 'overview', label: 'Overview', icon: User },
-  { id: 'instructions', label: 'Instructions', icon: FileText },
-  { id: 'personality', label: 'Soul', icon: Heart },
-  { id: 'memory', label: 'Memory', icon: Brain },
-  { id: 'rules', label: 'Rules', icon: Shield },
-  { id: 'tools', label: 'Tools', icon: Wrench },
-  { id: 'schedule', label: 'Schedule', icon: Clock },
-  { id: 'activity', label: 'Activity', icon: Activity },
-  { id: 'advanced', label: 'Advanced', icon: Settings },
+  { id: 'profile',    label: 'Profile',    icon: User,        desc: 'Who this agent is' },
+  { id: 'brief',      label: 'Brief',      icon: FileText,    desc: 'AGENTS.md & related docs' },
+  { id: 'rules',      label: 'Rules',      icon: Shield,      desc: 'What it can do' },
+  { id: 'schedule',   label: 'Schedule',   icon: Clock,       desc: 'When it runs' },
+  { id: 'trail',      label: 'Trail',      icon: Terminal,    desc: 'Behind the scenes' },
+  { id: 'workspace',  label: 'Workspace',  icon: FolderOpen,  desc: 'Files & Obsidian' },
 ] as const;
 
 type SectionId = typeof SECTIONS[number]['id'];
+
+// ── Remove Agent Button (type-to-confirm) ──
+
+const RemoveAgentButton = ({ agent, onRemove }: { agent: Agent; onRemove: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const confirmed = typed.trim().toLowerCase() === agent.name.trim().toLowerCase();
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full text-[11px] text-muted-foreground/50 hover:text-destructive transition-colors py-1 flex items-center justify-center gap-1.5"
+      >
+        <Trash2 className="w-3 h-3" /> Remove from office
+      </button>
+
+      <AlertDialog open={open} onOpenChange={o => { setOpen(o); if (!o) setTyped(''); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" /> Remove {agent.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <span className="block">
+                This permanently removes <strong>{agent.name}</strong> from your office — including all memory, rules, run history, and configuration. There is no undo.
+              </span>
+              <span className="block pt-1">
+                Type <strong className="text-foreground font-mono">{agent.name}</strong> to confirm:
+              </span>
+              <input
+                autoFocus
+                value={typed}
+                onChange={e => setTyped(e.target.value)}
+                placeholder={agent.name}
+                className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background font-mono focus:outline-none focus:ring-2 focus:ring-destructive/30"
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setTyped('')}>Cancel</AlertDialogCancel>
+            <Button
+              disabled={!confirmed}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => { if (confirmed) { setOpen(false); onRemove(); } }}
+            >
+              Remove permanently
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};
 
 // ── Main Component ──
 
 const AgentProfilePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const agents = useAgents();
-  const agent = agents.find(a => a.id === id);
-  const [section, setSection] = useState<SectionId>('overview');
+
+  // Prefer detail from backend; fall back to store for immediate render
+  const { data: agentDetail, isLoading: detailLoading } = useAgent(id ?? '');
+  const storeAgents = useAgents();
+  const storeAgent = storeAgents.find(a => a.id === id);
+  const agent = agentDetail ?? storeAgent;
+
+  const updateAgentMutation = useUpdateAgent(id ?? '');
+  const deleteAgentMutation = useDeleteAgent();
+
+  const [section, setSection] = useState<SectionId>('profile');
+  const taskAssignerRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Real run data from backend
+  const { data: backendRuns = [] } = useAgentRuns(id ?? '');
+  const runAgent = useRunAgent(id ?? '');
+  const runs = React.useMemo(() =>
+    backendRuns.map(r => ({
+      ...r,
+      startedAt:     new Date(r.startedAt),
+      finishedAt:    r.finishedAt ? new Date(r.finishedAt) : null,
+      outputSummary: r.outputSummary || null,
+    })),
+    [backendRuns],
+  );
+
+  if (detailLoading && !storeAgent) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[50vh]">
+        <p className="text-muted-foreground text-sm">Loading...</p>
+      </div>
+    );
+  }
 
   if (!agent) {
     return (
@@ -129,7 +220,7 @@ const AgentProfilePage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-1.5 mt-2">
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${stateColor(agent.state)}/10 text-foreground`}>
+            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${stateSoftBg(agent.state)}`}>
               {STATE_LABELS[agent.state]}
             </span>
             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
@@ -139,114 +230,90 @@ const AgentProfilePage: React.FC = () => {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2">
-          {SECTIONS.map((s, idx) => {
+          {SECTIONS.map((s) => {
             const Icon = s.icon;
-            const isAdvancedSection = idx >= 6; // Schedule, Activity, Advanced
-            const showDivider = idx === 6;
             return (
-              <React.Fragment key={s.id}>
-                {showDivider && (
-                  <div className="px-4 pt-3 pb-1">
-                    <p className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Advanced</p>
-                  </div>
+              <button
+                key={s.id}
+                onClick={() => setSection(s.id)}
+                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium transition-colors ${
+                  section === s.id
+                    ? 'text-primary bg-primary/5 border-r-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <div className="text-left min-w-0">
+                  <p className="leading-none">{s.label}</p>
+                  <p className="text-[9px] font-normal text-muted-foreground/70 mt-0.5 truncate">{s.desc}</p>
+                </div>
+                {s.id === 'trail' && runs.length > 0 && (
+                  <span className="ml-auto text-[9px] bg-primary/10 text-primary rounded-full px-1.5">{runs.length}</span>
                 )}
-                <button
-                  onClick={() => setSection(s.id)}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium transition-colors ${
-                    section === s.id
-                      ? 'text-primary bg-primary/5 border-r-2 border-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {s.label}
-                  {s.id === 'memory' && (agent.memoryItems?.length || 0) > 0 && (
-                    <span className="ml-auto text-[9px] bg-muted rounded-full px-1.5">{agent.memoryItems.length}</span>
-                  )}
-                  {s.id === 'rules' && (agent.ruleItems?.length || 0) > 0 && (
-                    <span className="ml-auto text-[9px] bg-muted rounded-full px-1.5">{agent.ruleItems.length}</span>
-                  )}
-                </button>
-              </React.Fragment>
+                {s.id === 'workspace' && !agent.workspacePath && (
+                  <span className="ml-auto text-[9px] bg-status-waiting/10 text-status-waiting rounded-full px-1.5">setup</span>
+                )}
+              </button>
             );
           })}
         </nav>
 
         {/* Action buttons - always visible */}
         <div className="p-3 border-t border-border space-y-1 shrink-0">
-          <Button size="sm" className="w-full text-xs h-7" onClick={() => { handleSetState('working'); toast.success(`Running ${agent.name} now`); }}>
+          <Button size="sm" className="w-full text-xs h-7" onClick={() => {
+            setSection('profile');
+            setTimeout(() => taskAssignerRef.current?.focus(), 50);
+          }}>
             <Play className="w-3 h-3" /> Run Now
           </Button>
           <div className="flex gap-1">
-            <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={() => setSection('overview')}>
-              <MessageSquare className="w-3 h-3" /> Message
-            </Button>
             <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={() => setSection('schedule')}>
               <Calendar className="w-3 h-3" /> Schedule
             </Button>
-          </div>
-          {isActive ? (
-            <Button size="sm" variant="outline" className="w-full text-xs h-7" onClick={() => handleSetState('paused')}>
-              <Pause className="w-3 h-3" /> Pause
-            </Button>
-          ) : agent.state === 'paused' ? (
-            <Button size="sm" variant="outline" className="w-full text-xs h-7" onClick={() => handleSetState('working')}>
-              <Play className="w-3 h-3" /> Resume
-            </Button>
-          ) : null}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost" className="w-full text-xs h-7 text-destructive">
-                <Trash2 className="w-3 h-3" /> Remove from Office
+            {isActive ? (
+              <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={() => handleSetState('paused')}>
+                <Pause className="w-3 h-3" /> Pause
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove {agent.name}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently remove this agent from your office. All configuration, memory, rules, and run history will be lost. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => { removeAgent(agent.id); navigate('/agents'); toast.success(`${agent.name} removed`); }}
-                >
-                  Yes, remove permanently
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            ) : agent.state === 'paused' ? (
+              <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={() => handleSetState('working')}>
+                <Play className="w-3 h-3" /> Resume
+              </Button>
+            ) : null}
+          </div>
+          <div className="pt-2 mt-1 border-t border-border/50">
+            <RemoveAgentButton agent={agent} onRemove={() => {
+              deleteAgentMutation.mutate(agent.id, { onSuccess: () => navigate('/agents') });
+              removeAgent(agent.id); // keep store in sync immediately
+            }} />
+          </div>
         </div>
       </div>
 
       {/* Main content */}
       <div className="flex-1 overflow-y-auto p-6 max-w-3xl">
-        {section === 'overview' && <OverviewSection agent={agent} onSetState={handleSetState} />}
-        {section === 'instructions' && <InstructionsSection agent={agent} />}
-        {section === 'personality' && <PersonalitySection agent={agent} />}
-        {section === 'memory' && <MemorySection agent={agent} />}
-        {section === 'rules' && <RulesSection agent={agent} />}
-        {section === 'tools' && <ToolsSection agent={agent} />}
-        {section === 'schedule' && <ScheduleSection agent={agent} />}
-        {section === 'activity' && <ActivitySection agent={agent} />}
-        {section === 'advanced' && <AdvancedSection agent={agent} />}
+        {section === 'profile'    && <ProfileSection agent={agent} onSetState={handleSetState} taskAssignerRef={taskAssignerRef} runs={runs} onRun={v => runAgent.mutate(v)} />}
+        {section === 'brief'      && <BriefSection agent={agent} />}
+        {section === 'rules'      && <RulesAndAccessSection agent={agent} />}
+        {section === 'schedule'   && <ScheduleSection agent={agent} />}
+        {section === 'trail'      && <TrailSection agent={agent} runs={runs} />}
+        {section === 'workspace'  && <WorkspaceSection agent={agent} />}
       </div>
     </div>
   );
 };
 
 // ═══════════════════════════════
-// OVERVIEW
+// PROFILE
 // ═══════════════════════════════
 
-const OverviewSection = ({ agent, onSetState }: { agent: Agent; onSetState: (s: AgentState) => void }) => {
+type MappedRun = { id: string; agentId: string; trigger: string; status: string; startedAt: Date; finishedAt: Date | null; inputSummary: string; outputSummary: string | null; errorSummary: string | null; backendRef?: string | null };
+
+const ProfileSection = ({ agent, onSetState, taskAssignerRef, runs = [], onRun }: { agent: Agent; onSetState: (s: AgentState) => void; taskAssignerRef?: React.RefObject<HTMLTextAreaElement>; runs?: MappedRun[]; onRun?: (input: string) => void }) => {
   const isActive = agent.state === 'working' || agent.state === 'walking';
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={User} title="Overview" desc="At a glance" />
+      <SectionHeader icon={User} title="Profile" desc="At a glance" />
 
       {/* Identity card with avatar */}
       <div className="flex items-start gap-5 p-4 bg-muted/30 rounded-xl border border-border">
@@ -292,32 +359,29 @@ const OverviewSection = ({ agent, onSetState }: { agent: Agent; onSetState: (s: 
       </div>
 
       {/* Run now */}
-      <TaskAssigner agent={agent} />
+      <TaskAssigner agent={agent} textareaRef={taskAssignerRef} onRun={onRun} />
 
       {/* Last result */}
-      {agent.runs.length > 0 && (
+      {runs.length > 0 && (
         <div className="p-4 bg-card border border-border rounded-xl">
           <p className="text-xs font-semibold text-muted-foreground mb-1">Last result</p>
-          <p className="text-sm text-foreground">{agent.runs[0].outputSummary || agent.runs[0].inputSummary}</p>
+          <p className="text-sm text-foreground">{runs[0].outputSummary || runs[0].inputSummary}</p>
           <div className="flex items-center gap-2 mt-2">
-            <RunBadge status={agent.runs[0].status} />
-            <span className="text-xs text-muted-foreground">{timeAgo(agent.runs[0].startedAt)}</span>
+            <RunBadge status={runs[0].status} />
+            <span className="text-xs text-muted-foreground">{timeAgo(runs[0].startedAt)}</span>
           </div>
         </div>
       )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Total runs" value={agent.runs.length} />
-        <StatCard label="Completed" value={agent.runs.filter(r => r.status === 'completed').length} />
-        <StatCard label="Last run" value={agent.lastRunAt ? timeAgo(agent.lastRunAt) : 'Never'} />
+        <StatCard label="Total runs" value={runs.length} />
+        <StatCard label="Completed" value={runs.filter(r => r.status === 'completed').length} />
+        <StatCard label="Last run" value={runs[0] ? timeAgo(runs[0].startedAt) : (agent.lastRunAt ? timeAgo(agent.lastRunAt) : 'Never')} />
       </div>
 
       {/* Pending approvals for this agent */}
       <PendingApprovalsCard agent={agent} />
-
-      {/* Safety summary */}
-      <SafetySummaryCard agent={agent} />
 
       {/* Quick actions: Duplicate + Approve all */}
       <AgentQuickActions agent={agent} />
@@ -436,259 +500,30 @@ const AgentQuickActions = ({ agent }: { agent: Agent }) => {
   );
 };
 
-// ═══════════════════════════════
-// INSTRUCTIONS
-// ═══════════════════════════════
+// ─── Appearance constants & helpers (used by BriefSection) ───
 
-// ── Markdown preview helper ──
-const AgentsMdPreview = ({ agent }: { agent: Agent }) => {
-  const md = [
-    `# ${agent.name}`,
-    '',
-    agent.role ? `> ${agent.role}` : '> *(no role defined)*',
-    '',
-    '## How to work',
-    '',
-    agent.instructions || '*No instructions yet.*',
-    '',
-    '## Success criteria',
-    '',
-    agent.audienceNotes || '*Not defined yet.*',
-    '',
-    '## Boundaries',
-    '',
-    agent.environmentNotes || '*No boundaries set.*',
-    '',
-    `---`,
-    '',
-    `**Archetype:** ${ARCHETYPE_LABELS[agent.archetype]}`,
-  ].join('\n');
+const SKIN_TONES = ['#FDDBB4', '#F1C27D', '#D2A679', '#8D5524', '#6B3A2A', '#3B1F0B'];
+const HAIR_COLORS = ['#1A1A1A', '#3B2716', '#A0522D', '#D4A44C', '#C0392B', '#8E44AD', '#F5F5DC'];
+const OUTFIT_COLORS = ['#5B8C5A', '#C06030', '#4A6FA5', '#9B59B6', '#2C3E50', '#E67E22', '#E74C3C', '#1ABC9C', '#F39C12', '#34495E'];
+const BODY_TYPE_OPTIONS: AgentAppearance['bodyType'][] = ['masculine', 'feminine'];
+const HAIR_STYLE_OPTIONS: AgentAppearance['hairStyle'][] = ['short', 'long', 'curly', 'buzz', 'ponytail', 'bun', 'mohawk', 'braids', 'wavy', 'afro', 'shaved'];
+const OUTFIT_STYLE_OPTIONS: AgentAppearance['outfitStyle'][] = ['casual', 'formal', 'sporty', 'techy', 'creative', 'cozy'];
+const GLASSES_OPTIONS: AgentAppearance['glasses'][] = ['none', 'round', 'square', 'aviator'];
+const HEADWEAR_OPTIONS: AgentAppearance['headwear'][] = ['none', 'cap', 'beanie', 'headband', 'beret'];
 
-  // Simple markdown-to-JSX renderer for preview
-  const renderLines = (text: string) => {
-    return text.split('\n').map((line, i) => {
-      if (line.startsWith('# ')) return <h1 key={i} className="text-lg font-bold text-foreground mb-1">{line.slice(2)}</h1>;
-      if (line.startsWith('## ')) return <h2 key={i} className="text-sm font-bold text-foreground mt-4 mb-1 border-b border-border pb-1">{line.slice(3)}</h2>;
-      if (line.startsWith('> ')) return <blockquote key={i} className="text-xs text-muted-foreground italic border-l-2 border-primary/40 pl-3 my-1">{line.slice(2)}</blockquote>;
-      if (line.startsWith('---')) return <hr key={i} className="border-border my-3" />;
-      if (line.startsWith('**') && line.includes(':**')) {
-        const [label, ...rest] = line.split(':**');
-        return <p key={i} className="text-xs text-foreground"><span className="font-bold">{label.replace(/\*\*/g, '')}:</span> {rest.join(':**').replace(/\*\*/g, '')}</p>;
-      }
-      if (line.startsWith('*') && line.endsWith('*') && !line.startsWith('**')) return <p key={i} className="text-xs text-muted-foreground italic">{line.replace(/\*/g, '')}</p>;
-      if (line.trim() === '') return <div key={i} className="h-1" />;
-      return <p key={i} className="text-xs text-foreground leading-relaxed">{line}</p>;
-    });
-  };
+const ColorRow = ({ label, colors, value, onChange }: { label: string; colors: string[]; value: string; onChange: (c: string) => void }) => (
+  <div>
+    <p className="text-[10px] font-medium text-muted-foreground mb-1">{label}</p>
+    <div className="flex gap-1.5 flex-wrap">
+      {colors.map(c => (
+        <button key={c} onClick={() => onChange(c)} className={`w-6 h-6 rounded-full border-2 transition-all ${value === c ? 'border-primary scale-110 ring-2 ring-primary/30' : 'border-transparent hover:scale-105'}`} style={{ backgroundColor: c }} aria-label={`${label} ${c}`} />
+      ))}
+    </div>
+  </div>
+);
 
+function ChipRow<T extends string>({ label, options, value, onChange }: { label: string; options: readonly T[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="border border-border rounded-xl overflow-hidden">
-      {/* File tab bar */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-muted/60 border-b border-border">
-        <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="font-mono text-[11px] font-medium text-foreground">AGENTS.md</span>
-        <span className="text-[10px] text-muted-foreground ml-auto">Preview</span>
-      </div>
-      {/* Rendered content */}
-      <div className="p-4 bg-card/50 font-sans space-y-0 max-h-[50vh] overflow-y-auto">
-        {renderLines(md)}
-      </div>
-      {/* Raw markdown toggle */}
-      <details className="border-t border-border">
-        <summary className="px-3 py-2 text-[10px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
-          View raw markdown
-        </summary>
-        <pre className="px-4 py-3 text-[11px] font-mono text-muted-foreground bg-muted/30 whitespace-pre-wrap overflow-x-auto max-h-[40vh]">{md}</pre>
-      </details>
-    </div>
-  );
-};
-
-const InstructionsSection = ({ agent }: { agent: Agent }) => {
-  const [showPreview, setShowPreview] = useState(false);
-
-  return (
-    <div className="space-y-0">
-      {/* AGENTS.md document header — briefing style */}
-      <div className="p-5 bg-muted/40 border border-border rounded-xl mb-1" style={{ borderLeft: '4px solid hsl(var(--primary))' }}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-              <FileText className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-mono text-sm font-bold text-foreground tracking-tight">AGENTS.md <span className="font-sans text-[11px] font-normal text-muted-foreground ml-1.5">— Character instruction file</span></p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                This is what <span className="font-medium text-foreground">{agent.name}</span> reads before every task. Edit it here or open it directly.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Button
-              variant={showPreview ? 'secondary' : 'ghost'}
-              size="sm"
-              className="text-xs h-8 gap-1.5"
-              onClick={() => setShowPreview(!showPreview)}
-            >
-              {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showPreview ? 'Edit' : 'Preview'}
-            </Button>
-            <Button variant="outline" size="sm" className="text-xs h-8 shrink-0 gap-1.5" onClick={() => toast.info('AGENTS.md opened in editor')}>
-              <BookOpen className="w-3.5 h-3.5" /> Open AGENTS.md
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Sync indicator */}
-      <div className="flex items-center gap-2 px-4 py-2 mb-6">
-        <RefreshCw className="w-3 h-3 text-muted-foreground shrink-0" />
-        <p className="text-[10px] text-muted-foreground">
-          Changes sync to <span className="font-mono font-medium text-foreground">AGENTS.md</span> automatically. The agent picks them up on its next run.
-        </p>
-      </div>
-
-      {/* ── Preview mode ── */}
-      {showPreview ? (
-        <AgentsMdPreview agent={agent} />
-      ) : (
-        <>
-          {/* ── Section 1: Role ── */}
-          <div className="py-4 border-b border-border">
-            <div className="flex items-baseline gap-2 mb-0.5">
-              <p className="text-xs font-bold text-foreground">Role</p>
-              <p className="text-[10px] text-muted-foreground">— what is this agent's job in one line</p>
-            </div>
-            <EditableField label="" value={agent.role} onSave={v => updateAgent(agent.id, { role: v })} placeholder="e.g. Research assistant that finds and summarizes information" />
-          </div>
-
-          {/* ── Section 2: How to work ── */}
-          <div className="py-4 border-b border-border">
-            <div className="flex items-baseline gap-2 mb-0.5">
-              <p className="text-xs font-bold text-foreground">How to work</p>
-              <p className="text-[10px] text-muted-foreground">— the actual prompt and behavior rules</p>
-            </div>
-            <p className="text-[10px] text-muted-foreground mb-2">These are the step-by-step instructions {agent.name} follows on every task. Be specific — this is the prompt.</p>
-            <EditableField
-              label=""
-              value={agent.instructions}
-              onSave={v => updateAgent(agent.id, { instructions: v })}
-              multiline
-              placeholder="e.g. When I ask you to research something, find at least 3 reliable sources. Always include links. Present findings as bullet points with a summary at the top."
-            />
-          </div>
-
-          {/* ── Section 3: Success criteria ── */}
-          <div className="py-4 border-b border-border">
-            <div className="flex items-baseline gap-2 mb-0.5">
-              <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><Target className="w-3 h-3 text-primary" /> What does a good output look like?</p>
-            </div>
-            <p className="text-[10px] text-muted-foreground mb-2">Describe what a successful result looks like so the agent knows when it's done right.</p>
-            <EditableField
-              label=""
-              value={agent.audienceNotes || ''}
-              onSave={v => updateAgent(agent.id, { audienceNotes: v })}
-              multiline
-              placeholder="e.g. A bullet-point summary with at least 3 sources linked. No longer than 500 words. Includes a confidence score."
-            />
-          </div>
-
-          {/* ── Section 4: Boundaries ── */}
-          <div className="py-4 border-b border-border">
-            <div className="flex items-baseline gap-2 mb-0.5">
-              <p className="text-xs font-bold text-foreground flex items-center gap-1.5"><AlertTriangle className="w-3 h-3 text-status-waiting" /> What should it never do?</p>
-            </div>
-            <p className="text-[10px] text-muted-foreground mb-2">Hard boundaries. These also flow into the <span className="font-medium text-foreground">Trust Center</span> for ongoing monitoring.</p>
-            <EditableField
-              label=""
-              value={agent.environmentNotes || ''}
-              onSave={v => updateAgent(agent.id, { environmentNotes: v })}
-              multiline
-              placeholder="e.g. Never fabricate sources or citations. Never access private repos without explicit permission. Never share user data outside the workspace."
-            />
-          </div>
-
-          {/* ── Section 5: Archetype ── */}
-          <div className="py-4 border-b border-border">
-            <div className="flex items-baseline gap-2 mb-1">
-              <p className="text-xs font-bold text-foreground">Archetype</p>
-              <p className="text-[10px] text-muted-foreground">— shapes how the agent thinks and approaches tasks</p>
-            </div>
-            <p className="text-[10px] text-muted-foreground mb-2">This isn't cosmetic — it changes the agent's reasoning style. A "helper" will ask clarifying questions; an "executor" will just do it.</p>
-            <Select value={agent.archetype} onValueChange={(v) => updateAgent(agent.id, { archetype: v as any })}>
-              <SelectTrigger className="h-9 text-xs max-w-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.entries(ARCHETYPE_LABELS) as [string, string][]).map(([key, label]) => (
-                  <SelectItem key={key} value={key} className="text-xs">{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </>
-      )}
-
-      {/* Power-user footer */}
-      <div className="flex items-center justify-between mt-5 px-4 py-3 bg-muted/30 rounded-lg border border-border">
-        <div className="flex items-center gap-2">
-          <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-          <p className="text-[11px] text-muted-foreground">
-            Prefer editing raw markdown? Open <span className="font-mono font-medium text-foreground">AGENTS.md</span> directly.
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" className="text-xs h-7 gap-1.5 text-primary" onClick={() => toast.info('AGENTS.md opened in editor')}>
-          <BookOpen className="w-3 h-3" /> Open file
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-// ═══════════════════════════════
-// PERSONALITY (Soul)
-// ═══════════════════════════════
-
-const VIBE_DESCRIPTIONS: Record<string, string> = {
-  calm: 'Measured and steady — never rushes, never panics.',
-  cheerful: 'Upbeat and encouraging — celebrates small wins.',
-  serious: 'All business — focused, no small talk.',
-  precise: 'Exact and careful — every word counts.',
-  creative: 'Imaginative and lateral — thinks around corners.',
-  quiet: 'Minimal and reserved — speaks only when it matters.',
-};
-
-const ARCHETYPE_DESCRIPTIONS: Record<string, { icon: React.ElementType; desc: string }> = {
-  organizer: { icon: Database, desc: 'Structures chaos into order. Loves lists, plans, and workflows.' },
-  researcher: { icon: BookOpen, desc: 'Digs deep, surfaces what matters. Thorough and citation-driven.' },
-  builder: { icon: Wrench, desc: 'Makes things. Writes code, drafts docs, ships deliverables.' },
-  watcher: { icon: Eye, desc: 'Monitors and alerts. Catches problems before they escalate.' },
-  helper: { icon: Heart, desc: 'Asks clarifying questions first. Patient and supportive.' },
-  messenger: { icon: MessageSquare, desc: 'Communicates and coordinates. Bridges people and systems.' },
-};
-
-const PersonalitySection = ({ agent }: { agent: Agent }) => {
-  const app = agent.appearance;
-  const setApp = (updates: Partial<AgentAppearance>) => updateAgent(agent.id, { appearance: { ...app, ...updates } });
-
-  const SKIN_TONES = ['#FDDBB4', '#F1C27D', '#D2A679', '#8D5524', '#6B3A2A', '#3B1F0B'];
-  const HAIR_COLORS = ['#1A1A1A', '#3B2716', '#A0522D', '#D4A44C', '#C0392B', '#8E44AD', '#F5F5DC'];
-  const OUTFIT_COLORS = ['#5B8C5A', '#C06030', '#4A6FA5', '#9B59B6', '#2C3E50', '#E67E22', '#E74C3C', '#1ABC9C', '#F39C12', '#34495E'];
-  const ACCENT_COLORS = ['#E67E22', '#2ECC71', '#3498DB', '#E91E63', '#F39C12', '#1ABC9C', '#9B59B6', '#E74C3C'];
-  const SHOE_COLORS = ['#333333', '#5D4037', '#1A237E', '#880E4F', '#4A4A4A', '#FFFFFF'];
-
-  const ColorRow = ({ label, colors, value, onChange }: { label: string; colors: string[]; value: string; onChange: (c: string) => void }) => (
-    <div>
-      <p className="text-[10px] font-medium text-muted-foreground mb-1">{label}</p>
-      <div className="flex gap-1.5 flex-wrap">
-        {colors.map(c => (
-          <button key={c} onClick={() => onChange(c)} className={`w-6 h-6 rounded-full border-2 transition-all ${value === c ? 'border-primary scale-110 ring-2 ring-primary/30' : 'border-transparent hover:scale-105'}`} style={{ backgroundColor: c }} />
-        ))}
-      </div>
-    </div>
-  );
-
-  const ChipRow = <T extends string>({ label, options, value, onChange }: { label: string; options: T[]; value: T; onChange: (v: T) => void }) => (
     <div>
       <p className="text-[10px] font-medium text-muted-foreground mb-1">{label}</p>
       <div className="flex gap-1 flex-wrap">
@@ -700,694 +535,429 @@ const PersonalitySection = ({ agent }: { agent: Agent }) => {
       </div>
     </div>
   );
-
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Heart className="w-4 h-4 text-primary" />
-          <h2 className="font-display text-base font-bold text-foreground">Soul</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">This is {agent.name}'s character sheet — who they are, how they sound, and how they show up.</p>
-      </div>
-
-      {/* ═══ Block 1: Voice & Character ═══ */}
-      <div className="space-y-5">
-        <div className="flex items-baseline gap-2">
-          <p className="text-sm font-bold text-foreground">Voice & Character</p>
-          <p className="text-[10px] text-muted-foreground">— how they communicate</p>
-        </div>
-
-        {/* Free-text personality */}
-        <div className="bg-card border border-border rounded-xl p-5">
-          <p className="text-xs font-bold text-foreground mb-0.5">In their own words</p>
-          <p className="text-[10px] text-muted-foreground mb-3">If this agent could describe themselves, what would they say? This shapes their tone in every response.</p>
-          <EditableField
-            label=""
-            value={agent.personality}
-            onSave={v => updateAgent(agent.id, { personality: v })}
-            multiline
-            placeholder="e.g. I'm friendly but concise. I use simple language and avoid jargon. I ask before assuming, and I always cite my sources."
-          />
-        </div>
-
-        {/* Communication style cards */}
-        <div>
-          <p className="text-xs font-bold text-foreground mb-0.5">Communication style</p>
-          <p className="text-[10px] text-muted-foreground mb-3">Pick the vibe that fits. This affects how the agent phrases things, not what it knows.</p>
-          <div className="grid grid-cols-2 gap-2">
-            {(Object.entries(VIBE_LABELS) as [Vibe, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => updateAgent(agent.id, { vibe: key })}
-                className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all ${
-                  agent.vibe === key
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-muted-foreground/30 bg-card'
-                }`}
-              >
-                <p className="text-xs font-bold text-foreground">{label}</p>
-                <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
-                  {VIBE_DESCRIPTIONS[key] || 'A distinct communication style.'}
-                </p>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div className="border-t border-border" />
-
-      {/* ═══ Block 2: Archetype ═══ */}
-      <div className="space-y-4">
-        <div className="flex items-baseline gap-2">
-          <p className="text-sm font-bold text-foreground">Archetype</p>
-          <p className="text-[10px] text-muted-foreground">— how they think and approach tasks</p>
-        </div>
-        <p className="text-[10px] text-muted-foreground -mt-2">This isn't cosmetic — it changes the agent's reasoning style and what it prioritizes.</p>
-
-        <div className="grid grid-cols-2 gap-3">
-          {(Object.entries(ARCHETYPE_LABELS) as [Archetype, string][]).map(([key, label]) => {
-            const meta = ARCHETYPE_DESCRIPTIONS[key];
-            const Icon = meta?.icon || Sparkles;
-            const isSelected = agent.archetype === key;
-            return (
-              <button
-                key={key}
-                onClick={() => updateAgent(agent.id, { archetype: key })}
-                className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${
-                  isSelected
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-muted-foreground/30 bg-card'
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-foreground">{label}</p>
-                  <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
-                    {meta?.desc || 'A unique approach to problem solving.'}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div className="border-t border-border" />
-
-      {/* ═══ Block 3: Appearance ═══ */}
-      <div className="space-y-4">
-        <div className="flex items-baseline gap-2">
-          <p className="text-sm font-bold text-foreground">How they look in the office</p>
-        </div>
-        <p className="text-[10px] text-muted-foreground -mt-2">Customize {agent.name}'s avatar. This is how they appear on the office floor and in conversations.</p>
-
-        <div className="bg-card border border-border rounded-xl p-5">
-          {/* Centered large avatar */}
-          <div className="flex justify-center mb-5">
-            <AvatarPreview appearance={app} name={agent.name} size={150} />
-          </div>
-
-          {/* Controls — scrollable */}
-          <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
-            <ChipRow label="Body type" options={['masculine', 'feminine', 'androgynous'] as AgentAppearance['bodyType'][]} value={app.bodyType || 'androgynous'} onChange={v => setApp({ bodyType: v })} />
-            <ColorRow label="Skin tone" colors={SKIN_TONES} value={app.skinTone} onChange={c => setApp({ skinTone: c })} />
-            <ChipRow label="Hair style" options={['short','long','curly','buzz','ponytail','bun','mohawk','braids','wavy','afro','shaved'] as AgentAppearance['hairStyle'][]} value={app.hairStyle} onChange={v => setApp({ hairStyle: v })} />
-            <ColorRow label="Hair color" colors={HAIR_COLORS} value={app.hairColor} onChange={c => setApp({ hairColor: c })} />
-            <ChipRow label="Outfit style" options={['casual','formal','sporty','techy','creative','cozy'] as AgentAppearance['outfitStyle'][]} value={app.outfitStyle} onChange={v => setApp({ outfitStyle: v })} />
-            <ColorRow label="Outfit color" colors={OUTFIT_COLORS} value={app.outfitColor} onChange={c => setApp({ outfitColor: c })} />
-            <ChipRow label="Pattern" options={['solid','striped','dotted','plaid'] as AgentAppearance['outfitPattern'][]} value={app.outfitPattern} onChange={v => setApp({ outfitPattern: v })} />
-            <ColorRow label="Accent color" colors={ACCENT_COLORS} value={app.accentColor} onChange={c => setApp({ accentColor: c })} />
-            <ColorRow label="Shoe color" colors={SHOE_COLORS} value={app.shoeColor} onChange={c => setApp({ shoeColor: c })} />
-            <ChipRow label="Glasses" options={['none','round','square','aviator'] as AgentAppearance['glasses'][]} value={app.glasses} onChange={v => setApp({ glasses: v })} />
-            <ChipRow label="Facial hair" options={['none','stubble','beard','mustache','goatee'] as AgentAppearance['facialHair'][]} value={app.facialHair} onChange={v => setApp({ facialHair: v })} />
-            <ChipRow label="Headwear" options={['none','cap','beanie','headband','beret'] as AgentAppearance['headwear'][]} value={app.headwear} onChange={v => setApp({ headwear: v })} />
-            <div>
-              <p className="text-[10px] font-medium text-muted-foreground mb-1">Accessory</p>
-              <div className="flex gap-1 flex-wrap">
-                {(['none','headphones','scarf','watch','necklace','earbuds'] as AgentAppearance['accessories'][number][]).map(acc => (
-                  <button key={acc} onClick={() => setApp({ accessories: [acc] })}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-medium capitalize transition-colors ${app.accessories?.[0] === acc ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
-                  >{acc}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+}
 
 // ═══════════════════════════════
-// MEMORY
+// BRIEF — AGENTS.md + companion docs
 // ═══════════════════════════════
 
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
-  preference: Heart,
-  context: Bookmark,
-  fact: Lightbulb,
-  note: StickyNote,
-};
+const DocFileLabel = ({ file, desc }: { file: string; desc: string }) => (
+  <div className="flex items-center gap-1.5 mb-2">
+    <span className="font-mono text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{file}</span>
+    <span className="text-[10px] text-muted-foreground">{desc}</span>
+  </div>
+);
 
-const MemorySection = ({ agent }: { agent: Agent }) => {
-  const [newContent, setNewContent] = useState('');
-  const [newCategory, setNewCategory] = useState<MemoryItem['category']>('note');
-  const items = agent.memoryItems || [];
-
-  // Pinned items float to top
-  const sortedItems = [...items].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1;
-    if (!a.pinned && b.pinned) return 1;
-    return b.createdAt.getTime() - a.createdAt.getTime();
-  });
-
-  const addItem = () => {
-    if (!newContent.trim()) return;
-    const item: MemoryItem = {
-      id: `mem-${Date.now()}`,
-      content: newContent.trim(),
-      category: newCategory,
-      pinned: false,
-      createdAt: new Date(),
-    };
-    updateAgent(agent.id, { memoryItems: [...items, item] });
-    setNewContent('');
-    toast.success('Memory added');
-  };
-
-  const removeItem = (itemId: string) => {
-    updateAgent(agent.id, { memoryItems: items.filter(i => i.id !== itemId) });
-    toast.success('Memory removed');
-  };
-
-  const togglePin = (itemId: string) => {
-    updateAgent(agent.id, { memoryItems: items.map(i => i.id === itemId ? { ...i, pinned: !i.pinned } : i) });
-  };
-
-  const categoryColor: Record<string, string> = {
-    preference: 'bg-primary/10 text-primary',
-    context: 'bg-secondary/10 text-secondary',
-    fact: 'bg-status-working/10 text-status-working',
-    note: 'bg-muted text-muted-foreground',
-  };
+const BriefSection = ({ agent }: { agent: Agent }) => {
+  const app = agent.appearance;
+  const setApp = (updates: Partial<AgentAppearance>) => updateAgent(agent.id, { appearance: { ...app, ...updates } });
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Brain} title="Memory" desc="Memories help this agent remember things between conversations" />
+      <SectionHeader icon={FileText} title="Brief" desc="What this agent knows, how it sounds, and what to remember" />
 
-      <div className="p-3 bg-muted/50 rounded-lg">
-        <p className="text-xs text-muted-foreground">
-          Memory helps your agent remember important things about you, your preferences, and your work.
-          Add facts, preferences, or context that should persist across conversations.
-        </p>
-      </div>
-
-      {/* Add new memory */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <p className="text-xs font-semibold text-muted-foreground">Add a memory</p>
-        <Textarea
-          value={newContent}
-          onChange={e => setNewContent(e.target.value)}
-          placeholder="e.g. I prefer bullet-point summaries over long paragraphs"
-          className="min-h-[60px] text-sm resize-none"
-        />
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1.5">
-            {(['preference', 'context', 'fact', 'note'] as const).map(c => {
-              const CatIcon = CATEGORY_ICONS[c];
-              return (
-                <button
-                  key={c}
-                  onClick={() => setNewCategory(c)}
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium capitalize transition-colors flex items-center gap-1 ${
-                    newCategory === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
-                  }`}
-                >
-                  <CatIcon className="w-3 h-3" />
-                  {c}
-                </button>
-              );
-            })}
+      {/* AGENTS.md */}
+      <div className="space-y-3">
+        <DocFileLabel file="AGENTS.md" desc="Read before every task" />
+        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+          <div>
+            <p className="text-xs font-semibold text-foreground mb-1">Role</p>
+            <EditableField label="" value={agent.role} onSave={v => updateAgent(agent.id, { role: v })} placeholder="What this agent does in one sentence" />
           </div>
-          <Button size="sm" onClick={addItem} disabled={!newContent.trim()} className="text-xs h-7">
-            <Plus className="w-3 h-3" /> Add
-          </Button>
+          <div className="border-t border-border/50 pt-4">
+            <p className="text-xs font-semibold text-foreground mb-1">Instructions</p>
+            <p className="text-[10px] text-muted-foreground mb-2">What the agent does on every task</p>
+            <EditableField label="" value={agent.instructions} onSave={v => updateAgent(agent.id, { instructions: v })} multiline tall placeholder="e.g. When asked to research something, find at least 3 sources. Always include links. Present findings as bullet points." />
+          </div>
+          <div className="border-t border-border/50 pt-4">
+            <p className="text-xs font-semibold text-foreground mb-1">Personality</p>
+            <p className="text-[10px] text-muted-foreground mb-2">What you write here is what this agent becomes — the more specific, the better.</p>
+            <EditableField label="" value={agent.personality} onSave={v => updateAgent(agent.id, { personality: v })} multiline tall placeholder="Describe how this agent talks, thinks, and behaves. Be as specific as you want — things like 'never uses bullet points', 'always asks a clarifying question before starting', or 'speaks casually but is precise about details' all count." />
+          </div>
         </div>
       </div>
 
-      {/* Memory items */}
-      <div className="space-y-2">
-        {sortedItems.map(item => {
-          const CatIcon = CATEGORY_ICONS[item.category] || StickyNote;
-          return (
-            <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border rounded-xl group transition-all ${item.pinned ? 'border-primary/30 bg-primary/5' : 'border-border'}`}>
-              <div className="mt-0.5 shrink-0">
-                <CatIcon className={`w-4 h-4 ${item.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground">{item.content}</p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${categoryColor[item.category]}`}>{item.category}</span>
-                  <span className="text-[10px] text-muted-foreground">{timeAgo(item.createdAt)}</span>
-                  {item.pinned && <span className="text-[10px] text-primary font-medium flex items-center gap-0.5"><Pin className="w-2.5 h-2.5" /> Pinned</span>}
-                </div>
-              </div>
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => togglePin(item.id)} className={`p-1 rounded transition-colors ${item.pinned ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}>
-                  <Pin className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive p-1">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-        {items.length === 0 && (
-          <div className="text-center py-10 border border-dashed border-border rounded-xl px-6">
-            <Brain className="w-8 h-8 mx-auto text-muted-foreground/60 mb-3" />
-            <p className="text-sm font-medium text-foreground mb-1">No memory yet</p>
-            <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
-              Add a few things this agent should remember, like your writing preferences or important facts.
-            </p>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {[
-                { label: 'User preference', category: 'preference' as const, placeholder: 'e.g. I prefer bullet-point summaries' },
-                { label: 'Important fact', category: 'fact' as const, placeholder: 'e.g. Our fiscal year starts in April' },
-                { label: 'Standing context', category: 'context' as const, placeholder: 'e.g. I work in a 4-person marketing team' },
-              ].map(chip => (
-                <button
-                  key={chip.label}
-                  onClick={() => { setNewCategory(chip.category); setNewContent(chip.placeholder); }}
-                  className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-[11px] font-medium hover:bg-primary/20 transition-colors"
-                >
-                  + {chip.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* USER.md */}
+      <div className="space-y-3">
+        <DocFileLabel file="USER.md" desc="Who this agent is helping" />
+        <div className="bg-card border border-border rounded-xl p-4">
+          <EditableField label="" value={agent.audienceNotes || ''} onSave={v => updateAgent(agent.id, { audienceNotes: v })} multiline placeholder="e.g. A solo founder shipping a side project. Prefers bullet-point summaries, works in Pacific time." />
+        </div>
       </div>
 
-      {/* Notes area */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <p className="text-xs font-semibold text-muted-foreground mb-2">General memory notes</p>
-        <EditableField
-          label=""
-          value={agent.memoryNotes || ''}
-          onSave={v => updateAgent(agent.id, { memoryNotes: v })}
-          multiline
-          placeholder="Free-form notes about what this agent should keep track of..."
-        />
+      {/* TOOLS.md */}
+      <div className="space-y-3">
+        <DocFileLabel file="TOOLS.md" desc="What tools and systems are available" />
+        <div className="bg-card border border-border rounded-xl p-4">
+          <EditableField label="" value={agent.environmentNotes || ''} onSave={v => updateAgent(agent.id, { environmentNotes: v })} multiline placeholder="e.g. Uses Google Workspace. Has access to GitHub via the gh CLI. Prefers markdown output." />
+        </div>
+      </div>
+
+      {/* MEMORY.md */}
+      <div className="space-y-3">
+        <DocFileLabel file="MEMORY.md" desc="What the agent should remember between runs" />
+        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+          <EditableField label="" value={agent.memoryNotes || ''} onSave={v => updateAgent(agent.id, { memoryNotes: v })} multiline placeholder="Free-form notes the agent should carry forward..." />
+
+          {/* Structured memory items */}
+          {(agent.memoryItems || []).length > 0 && (
+            <div className="border-t border-border/50 pt-3 space-y-1.5">
+              <p className="text-[10px] font-medium text-muted-foreground mb-2">Pinned items</p>
+              {[...agent.memoryItems].sort((a, b) => Number(b.pinned) - Number(a.pinned)).slice(0, 5).map(item => (
+                <div key={item.id} className="flex items-start gap-2 text-xs">
+                  <span className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${item.pinned ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
+                  <p className="text-foreground">{item.content}</p>
+                  <span className="ml-auto text-[9px] text-muted-foreground capitalize shrink-0">{item.category}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Appearance */}
+      <div className="space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground">Appearance</p>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex gap-4">
+            <div className="shrink-0">
+              <AvatarPreview appearance={app} name={agent.name} size={100} />
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto max-h-[40vh] pr-1">
+              <ChipRow label="Body type" options={BODY_TYPE_OPTIONS} value={app.bodyType || 'masculine'} onChange={v => setApp({ bodyType: v })} />
+              <ColorRow label="Skin tone" colors={SKIN_TONES} value={app.skinTone} onChange={c => setApp({ skinTone: c })} />
+              <ChipRow label="Hair style" options={HAIR_STYLE_OPTIONS} value={app.hairStyle} onChange={v => setApp({ hairStyle: v })} />
+              <ColorRow label="Hair color" colors={HAIR_COLORS} value={app.hairColor} onChange={c => setApp({ hairColor: c })} />
+              <ChipRow label="Outfit style" options={OUTFIT_STYLE_OPTIONS} value={app.outfitStyle} onChange={v => setApp({ outfitStyle: v })} />
+              <ColorRow label="Outfit color" colors={OUTFIT_COLORS} value={app.outfitColor} onChange={c => setApp({ outfitColor: c })} />
+              <ChipRow label="Glasses" options={GLASSES_OPTIONS} value={app.glasses} onChange={v => setApp({ glasses: v })} />
+              <ChipRow label="Headwear" options={HEADWEAR_OPTIONS} value={app.headwear} onChange={v => setApp({ headwear: v })} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">
+        <RefreshCw className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <p className="text-[11px] text-muted-foreground">
+          Changes here sync to <span className="font-mono font-medium text-foreground">AGENTS.md</span> in your workspace automatically.
+        </p>
       </div>
     </div>
   );
 };
 
 // ═══════════════════════════════
-// RULES
+// RULES & ACCESS
 // ═══════════════════════════════
 
-const RulesSection = ({ agent }: { agent: Agent }) => {
+const ACCESS_ITEMS = [
+  { id: 'web', label: 'Can search the web', desc: 'Lets the agent fetch URLs and search online', icon: Globe },
+  { id: 'files', label: 'Can read & write files', desc: 'Access to your workspace folder on disk', icon: FolderOpen },
+  { id: 'email', label: 'Can send emails', desc: 'Requires your approval for each email by default', icon: FileText },
+  { id: 'background', label: 'Runs without you open', desc: 'Agent can work on its schedule in the background', icon: RefreshCw },
+] as const;
+
+const RulesAndAccessSection = ({ agent }: { agent: Agent }) => {
   const [newContent, setNewContent] = useState('');
   const [newPriority, setNewPriority] = useState<RulePriority>('preference');
   const items = agent.ruleItems || [];
 
-  // Group by priority: hard-rule first, then safe, then preference
   const priorityOrder: Record<RulePriority, number> = { 'hard-rule': 0, safe: 1, preference: 2 };
-  const sortedItems = [...items].sort((a, b) => {
-    const po = priorityOrder[a.priority] - priorityOrder[b.priority];
-    if (po !== 0) return po;
-    return (a.order ?? 0) - (b.order ?? 0);
-  });
+  const sortedItems = [...items].sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority] || (a.order ?? 0) - (b.order ?? 0));
 
   const addItem = () => {
     if (!newContent.trim()) return;
-    const item: RuleItem = {
-      id: `rule-${Date.now()}`,
-      content: newContent.trim(),
-      priority: newPriority,
-      enabled: true,
-      order: items.length,
-    };
-    updateAgent(agent.id, { ruleItems: [...items, item] });
+    updateAgent(agent.id, { ruleItems: [...items, { id: `rule-${Date.now()}`, content: newContent.trim(), priority: newPriority, enabled: true, order: items.length }] });
     setNewContent('');
     toast.success('Rule added');
-  };
-
-  const removeItem = (itemId: string) => {
-    updateAgent(agent.id, { ruleItems: items.filter(i => i.id !== itemId) });
-    toast.success('Rule removed');
   };
 
   const toggleItem = (itemId: string) => {
     updateAgent(agent.id, { ruleItems: items.map(i => i.id === itemId ? { ...i, enabled: !i.enabled } : i) });
   };
 
-  const priorityBorderColor: Record<RulePriority, string> = {
-    safe: 'border-l-[hsl(var(--status-working))]',
-    preference: 'border-l-primary',
-    'hard-rule': 'border-l-destructive',
+  const removeItem = (itemId: string) => {
+    updateAgent(agent.id, { ruleItems: items.filter(i => i.id !== itemId) });
   };
 
   const priorityColor: Record<RulePriority, string> = {
-    safe: 'bg-status-working/10 text-status-working',
-    preference: 'bg-primary/10 text-primary',
-    'hard-rule': 'bg-destructive/10 text-destructive',
+    safe: 'text-status-working',
+    preference: 'text-primary',
+    'hard-rule': 'text-destructive',
   };
 
-  const priorityLabel: Record<RulePriority, string> = {
-    safe: 'Safety',
-    preference: 'Preference',
-    'hard-rule': 'Hard Rule',
-  };
-
-  // Group items for section headers
-  const groups: { priority: RulePriority; items: typeof sortedItems }[] = [];
-  let lastPriority: RulePriority | null = null;
-  for (const item of sortedItems) {
-    if (item.priority !== lastPriority) {
-      groups.push({ priority: item.priority, items: [item] });
-      lastPriority = item.priority;
-    } else {
-      groups[groups.length - 1].items.push(item);
-    }
-  }
+  const priorityLabel: Record<RulePriority, string> = { safe: 'Safety', preference: 'Preference', 'hard-rule': 'Hard Rule' };
+  const priorityLeftBorder: Record<RulePriority, string> = { safe: 'border-l-[hsl(var(--status-working))]', preference: 'border-l-primary', 'hard-rule': 'border-l-destructive' };
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Shield} title="Rules & Boundaries" desc="Rules are hard limits this agent will always follow" />
+      <SectionHeader icon={Shield} title="Rules & Access" desc="What this agent can do and what it should never do" />
 
-      <div className="p-3 bg-muted/50 rounded-lg">
-        <p className="text-xs text-muted-foreground">
-          Rules give your agent clear boundaries. They're checked before every action.
-          Use "Hard Rule" for things that must never be broken, "Safety" for protective defaults, and "Preference" for guidelines.
-        </p>
+      {/* Access toggles */}
+      <div className="bg-card border border-border rounded-xl divide-y divide-border/50">
+        <p className="px-4 pt-3 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Capabilities</p>
+        {ACCESS_ITEMS.map(item => {
+          const Icon = item.icon;
+          const isOn = item.id === 'web' ? agent.permissions?.networkAccess :
+                       item.id === 'background' ? agent.backgroundEnabled :
+                       item.id === 'files' ? (agent.permissions?.dataScopes?.length ?? 0) > 0 :
+                       item.id === 'email' ? (agent.permissions?.requiresApprovalFor?.includes('email') === false) : false;
+          return (
+            <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground">{item.label}</p>
+                <p className="text-[10px] text-muted-foreground">{item.desc}</p>
+              </div>
+              <Switch
+                checked={!!isOn}
+                onCheckedChange={v => {
+                  if (item.id === 'web') {
+                    const p = agent.permissions ?? { id: `perm-${Date.now()}`, agentId: agent.id, safetyLevel: 'moderate' as const, toolScopes: [], dataScopes: [], networkAccess: false, requiresApprovalFor: [], backgroundAllowed: false };
+                    updateAgent(agent.id, { permissions: { ...p, networkAccess: v } });
+                  } else if (item.id === 'background') {
+                    updateAgent(agent.id, { backgroundEnabled: v });
+                  } else if (item.id === 'files') {
+                    const p = agent.permissions ?? { id: `perm-${Date.now()}`, agentId: agent.id, safetyLevel: 'moderate' as const, toolScopes: [], dataScopes: [], networkAccess: false, requiresApprovalFor: [], backgroundAllowed: false };
+                    updateAgent(agent.id, { permissions: { ...p, dataScopes: v ? ['workspace'] : [] } });
+                  }
+                }}
+              />
+            </div>
+          );
+        })}
       </div>
 
-      {/* Add new rule */}
+      {/* Escalation */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <p className="text-xs font-semibold text-muted-foreground">Add a rule</p>
-        <Textarea
-          value={newContent}
-          onChange={e => setNewContent(e.target.value)}
-          placeholder="e.g. Always ask before sending an email on my behalf"
-          className="min-h-[60px] text-sm resize-none"
-        />
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1.5">
-            {(['safe', 'preference', 'hard-rule'] as const).map(p => (
-              <button
-                key={p}
-                onClick={() => setNewPriority(p)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors ${
-                  newPriority === p ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                {priorityLabel[p]}
-              </button>
-            ))}
-          </div>
-          <Button size="sm" onClick={addItem} disabled={!newContent.trim()} className="text-xs h-7">
-            <Plus className="w-3 h-3" /> Add
-          </Button>
+        <p className="text-xs font-semibold text-muted-foreground">When it gets stuck</p>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { val: 'pause-and-wait', label: 'Pause & wait', desc: 'Safest' },
+            { val: 'retry-once', label: 'Retry once', desc: 'Then pauses' },
+            { val: 'notify-and-continue', label: 'Notify & continue', desc: 'Best effort' },
+            { val: 'ask-for-help', label: 'Ask for help', desc: 'Interactive' },
+          ] as const).map(opt => (
+            <button key={opt.val} onClick={() => updateAgent(agent.id, { escalationBehavior: opt.val })}
+              className={`p-2.5 rounded-xl border-2 text-left text-xs transition-all ${agent.escalationBehavior === opt.val ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'}`}
+            >
+              <p className="font-medium text-foreground">{opt.label}</p>
+              <p className="text-[10px] text-muted-foreground">{opt.desc}</p>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Rule items grouped by priority */}
-      <div className="space-y-4">
-        {groups.map(group => (
-          <div key={group.priority}>
-            <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${
-              group.priority === 'hard-rule' ? 'text-destructive' : group.priority === 'safe' ? 'text-status-working' : 'text-primary'
-            }`}>
-              {priorityLabel[group.priority]}s ({group.items.length})
-            </p>
-            <div className="space-y-1.5">
-              {group.items.map(item => (
-                <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border border-border border-l-4 ${priorityBorderColor[item.priority]} rounded-xl group transition-opacity ${!item.enabled ? 'opacity-60' : ''}`}>
-                  <Switch checked={item.enabled} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm ${item.enabled ? 'text-foreground' : 'text-muted-foreground line-through'}`}>{item.content}</p>
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full mt-1.5 inline-block ${priorityColor[item.priority]}`}>{priorityLabel[item.priority]}</span>
-                  </div>
-                  <button
-                    onClick={() => removeItem(item.id)}
-                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+      {/* Hard rules */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-muted-foreground">Hard rules</p>
+          <span className="text-[10px] text-muted-foreground">{items.length} rule{items.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {/* Add rule */}
+        <div className="bg-card border border-border rounded-xl p-3 space-y-2">
+          <Textarea value={newContent} onChange={e => setNewContent(e.target.value)} placeholder="e.g. Never send emails without my approval" className="min-h-[52px] text-sm resize-none" />
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1">
+              {(['safe', 'preference', 'hard-rule'] as const).map(p => (
+                <button key={p} onClick={() => setNewPriority(p)}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${newPriority === p ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                >{priorityLabel[p]}</button>
               ))}
             </div>
+            <Button size="sm" onClick={addItem} disabled={!newContent.trim()} className="text-xs h-7">
+              <Plus className="w-3 h-3" /> Add
+            </Button>
           </div>
-        ))}
-        {items.length === 0 && (
-          <div className="text-center py-10 border border-dashed border-border rounded-xl px-6">
-            <Shield className="w-8 h-8 mx-auto text-muted-foreground/60 mb-3" />
-            <p className="text-sm font-medium text-foreground mb-1">No rules yet</p>
-            <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
-              Add rules to keep this agent predictable and safe. Rules are checked before every action.
-            </p>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {[
-                { label: 'Safety rule', priority: 'safe' as const, placeholder: 'e.g. Never share personal data with external services' },
-                { label: 'Preference', priority: 'preference' as const, placeholder: 'e.g. Prefer shorter responses unless asked for detail' },
-                { label: 'Hard limit', priority: 'hard-rule' as const, placeholder: 'e.g. Never send emails without my approval' },
-              ].map(chip => (
-                <button
-                  key={chip.label}
-                  onClick={() => { setNewPriority(chip.priority); setNewContent(chip.placeholder); }}
-                  className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-[11px] font-medium hover:bg-primary/20 transition-colors"
-                >
-                  + {chip.label}
-                </button>
-              ))}
+        </div>
+
+        {/* Rule list */}
+        <div className="space-y-1.5">
+          {sortedItems.map(item => (
+            <div key={item.id} className={`flex items-start gap-3 p-3 bg-card border border-border border-l-4 ${priorityLeftBorder[item.priority]} rounded-xl group ${!item.enabled ? 'opacity-50' : ''}`}>
+              <Switch checked={item.enabled} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs ${item.enabled ? 'text-foreground' : 'text-muted-foreground line-through'}`}>{item.content}</p>
+                <span className={`text-[10px] font-medium ${priorityColor[item.priority]}`}>{priorityLabel[item.priority]}</span>
+              </div>
+              <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive opacity-30 group-hover:opacity-100 transition-opacity p-1 shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-          </div>
-        )}
+          ))}
+          {items.length === 0 && (
+            <div className="text-center py-8 border border-dashed border-border rounded-xl">
+              <Shield className="w-6 h-6 mx-auto text-muted-foreground/40 mb-2" />
+              <p className="text-xs text-muted-foreground">No rules yet — they'll be checked before every action.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 };
-
-// ═══════════════════════════════
-// TOOLS
-// ═══════════════════════════════
-
-const ToolsSection = ({ agent }: { agent: Agent }) => (
-  <div className="space-y-6">
-    <SectionHeader icon={Wrench} title="Tools & Access" desc="What systems and capabilities this agent can use" />
-
-    {agent.permissions ? (
-      <div className="space-y-4">
-        <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-xs font-semibold text-muted-foreground mb-3">What tools it can use</p>
-          <div className="flex flex-wrap gap-2">
-            {agent.permissions.toolScopes.map(t => (
-              <span key={t} className="px-3 py-1 bg-muted rounded-lg text-xs font-medium text-foreground">{t}</span>
-            ))}
-            {agent.permissions.toolScopes.length === 0 && <p className="text-xs text-muted-foreground italic">No tools configured yet</p>}
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-xs font-semibold text-muted-foreground mb-3">What data it can see</p>
-          <div className="flex flex-wrap gap-2">
-            {agent.permissions.dataScopes.map(d => (
-              <span key={d} className="px-3 py-1 bg-muted rounded-lg text-xs font-medium text-foreground">{d}</span>
-            ))}
-            {agent.permissions.dataScopes.length === 0 && <p className="text-xs text-muted-foreground italic">No data access configured yet</p>}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 bg-card border border-border rounded-xl flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-foreground">Internet access</p>
-              <p className="text-[10px] text-muted-foreground">Allows this agent to reach websites and external services</p>
-            </div>
-            <Switch
-              checked={agent.permissions.networkAccess}
-              onCheckedChange={v => updateAgent(agent.id, { permissions: { ...agent.permissions!, networkAccess: v } })}
-            />
-          </div>
-          <div className="p-3 bg-card border border-border rounded-xl flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-foreground">Background work</p>
-              <p className="text-[10px] text-muted-foreground">This lets the agent keep working without you reopening Homeroom</p>
-            </div>
-            <Switch
-              checked={agent.permissions.backgroundAllowed}
-              onCheckedChange={v => updateAgent(agent.id, { permissions: { ...agent.permissions!, backgroundAllowed: v } })}
-            />
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-xs font-semibold text-muted-foreground mb-2">Needs your OK for</p>
-          <div className="flex flex-wrap gap-2">
-            {agent.permissions.requiresApprovalFor.map(r => (
-              <span key={r} className="px-3 py-1 bg-status-waiting/10 rounded-lg text-xs font-medium text-status-waiting">{r}</span>
-            ))}
-          </div>
-        </div>
-      </div>
-    ) : (
-      <div className="text-center py-12 border border-dashed border-border rounded-xl px-6">
-        <Shield className="w-8 h-8 mx-auto text-muted-foreground/60 mb-3" />
-        <p className="text-sm font-medium text-foreground mb-1">No tools or access configured</p>
-        <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
-          Set up guardrails to control what this agent can do. Start with safe defaults — you can always expand later.
-        </p>
-        <Button
-          size="sm"
-          onClick={() => updateAgent(agent.id, {
-            permissions: {
-              id: `perm-${Date.now()}`, agentId: agent.id,
-              safetyLevel: 'moderate', toolScopes: [], dataScopes: [],
-              networkAccess: false, requiresApprovalFor: ['all-actions'],
-              backgroundAllowed: false,
-            }
-          })}
-        >
-          <Shield className="w-3 h-3" /> Apply safe defaults
-        </Button>
-        <p className="text-[10px] text-muted-foreground mt-2">No internet, no background, approval required for all actions</p>
-      </div>
-    )}
-
-    <div className="bg-card border border-border rounded-xl p-4">
-      <p className="text-xs font-semibold text-muted-foreground mb-2">Environment notes</p>
-      <p className="text-[10px] text-muted-foreground mb-2">What tools, systems, and conventions does this agent work with?</p>
-      <EditableField
-        label=""
-        value={agent.environmentNotes || ''}
-        onSave={v => updateAgent(agent.id, { environmentNotes: v })}
-        multiline
-        placeholder="e.g. Uses Google Workspace, prefers markdown output, follows our team style guide."
-      />
-    </div>
-  </div>
-);
 
 // ═══════════════════════════════
 // SCHEDULE
 // ═══════════════════════════════
 
 const ScheduleSection = ({ agent }: { agent: Agent }) => {
-  const schedulePresets = [
-    { label: 'Manual only', value: 'manual', desc: 'Only runs when you ask', badge: 'Safe default' },
-    { label: 'Every morning', value: 'daily', desc: 'Runs once a day at 9 AM — good for daily summaries or check-ins', badge: 'Recommended' },
-    { label: 'Every hour', value: 'hourly', desc: 'Checks in every hour during work hours — for monitoring tasks', badge: null },
-    { label: 'Every weekday', value: 'weekly', desc: 'Runs Monday through Friday — good for recurring reports', badge: null },
-  ];
+  const [task, setTask] = useState(agent.currentTask || '');
+  const presets = [
+    { value: null,      label: 'Manual only',     desc: 'Only runs when you ask' },
+    { value: 'daily',   label: 'Every morning',   desc: 'Once a day at 9 AM' },
+    { value: 'hourly',  label: 'Every hour',      desc: 'During work hours' },
+    { value: 'weekly',  label: 'Every weekday',   desc: 'Monday–Friday' },
+    { value: 'custom',  label: 'Custom',          desc: 'Set your own schedule' },
+  ] as const;
+
+  const activePreset = agent.schedule?.preset ?? null;
+
+  const save = () => {
+    if (activePreset === null) {
+      updateAgent(agent.id, { schedule: null, scheduleSummary: null });
+    } else {
+      const p = presets.find(p => p.value === activePreset);
+      updateAgent(agent.id, {
+        scheduleSummary: p?.desc ?? null,
+        schedule: {
+          id: agent.schedule?.id ?? `sched-${Date.now()}`,
+          agentId: agent.id,
+          enabled: true,
+          preset: activePreset,
+          plainEnglish: p?.desc ?? '',
+          backendExpression: null,
+          nextRunAt: new Date(Date.now() + 3600000),
+        },
+      });
+    }
+    if (task.trim()) updateAgent(agent.id, { currentTask: task.trim() });
+    toast.success('Schedule saved');
+  };
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Clock} title="Schedule" desc="When and how often this agent runs" />
+      <SectionHeader icon={Clock} title="Schedule" desc="What this agent does on its own and when" />
 
-      <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl">
-        <div>
-          <p className="text-sm font-medium text-foreground">Runs in background</p>
-          <p className="text-xs text-muted-foreground">This lets the agent keep working without you reopening Homeroom</p>
-        </div>
-        <Switch
-          checked={agent.backgroundEnabled}
-          onCheckedChange={v => updateAgent(agent.id, { backgroundEnabled: v })}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <p className="text-xs font-semibold text-foreground">What should it do?</p>
+        <Textarea
+          value={task}
+          onChange={e => setTask(e.target.value)}
+          placeholder={`e.g. Check my inbox for anything urgent and summarise it`}
+          className="min-h-[72px] text-sm resize-none"
         />
+        <p className="text-[10px] text-muted-foreground">This is the standing task the agent runs on schedule. You can override it any time from the Run Now box.</p>
       </div>
 
-      {agent.backgroundEnabled && !agent.permissions && (
-        <div className="p-3 bg-status-waiting/10 border border-status-waiting/20 rounded-lg flex items-start gap-2">
-          <AlertTriangle className="w-4 h-4 text-status-waiting shrink-0 mt-0.5" />
-          <p className="text-xs text-status-waiting">
-            This agent runs in the background but has no guardrails. Consider setting up tools & access first.
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground">How often?</p>
+        {presets.map(p => (
+          <button
+            key={String(p.value)}
+            onClick={() => updateAgent(agent.id, {
+              schedule: p.value === null ? null : {
+                id: agent.schedule?.id ?? `sched-${Date.now()}`,
+                agentId: agent.id,
+                enabled: true,
+                preset: p.value,
+                plainEnglish: p.desc,
+                backendExpression: null,
+                nextRunAt: new Date(Date.now() + 3600000),
+              },
+              scheduleSummary: p.value === null ? null : p.desc,
+            })}
+            className={`w-full p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 ${
+              activePreset === p.value ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded-full border-2 shrink-0 ${activePreset === p.value ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`} />
+            <div>
+              <p className="text-xs font-medium text-foreground">{p.label}</p>
+              <p className="text-[10px] text-muted-foreground">{p.desc}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between p-3 bg-card border border-border rounded-xl">
+        <div>
+          <p className="text-xs font-medium text-foreground">Runs in background</p>
+          <p className="text-[10px] text-muted-foreground">Keeps working without Homeroom open</p>
+        </div>
+        <Switch checked={agent.backgroundEnabled} onCheckedChange={v => updateAgent(agent.id, { backgroundEnabled: v })} />
+      </div>
+
+      {agent.schedule && (
+        <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">
+          <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+          <p className="text-[11px] text-muted-foreground">
+            Next run: <span className="font-medium text-foreground">{agent.schedule.nextRunAt ? timeAgo(agent.schedule.nextRunAt) : 'TBD'}</span> · {agent.schedule.plainEnglish}
           </p>
         </div>
       )}
 
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-3">Schedule preset</p>
-        <div className="space-y-2">
-          {schedulePresets.map(p => (
+      {/* Intelligence level */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Zap className="w-4 h-4 text-primary" />
+          <p className="text-xs font-semibold text-foreground">Intelligence</p>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          Controls which AI model powers this agent. Higher intelligence means better reasoning and longer tasks, but costs more per run.
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { value: 'basic',    label: 'Basic',    desc: 'Fast & cheap. Good for simple, repetitive tasks.' },
+            { value: 'standard', label: 'Standard', desc: 'Balanced. Handles most tasks well.' },
+            { value: 'advanced', label: 'Advanced', desc: 'Best reasoning. Use for complex or high-stakes tasks.' },
+          ] as const).map(opt => (
             <button
-              key={p.value}
-              onClick={() => {
-                if (p.value === 'manual') {
-                  updateAgent(agent.id, { schedule: null, scheduleSummary: null });
-                } else {
-                  updateAgent(agent.id, {
-                    scheduleSummary: p.desc,
-                    schedule: {
-                      id: `sched-${Date.now()}`, agentId: agent.id,
-                      enabled: true, preset: p.value as any,
-                      plainEnglish: p.desc,
-                      backendExpression: null,
-                      nextRunAt: new Date(Date.now() + 3600000),
-                    }
-                  });
-                }
-                toast.success(`Schedule updated: ${p.label}`);
-              }}
-              className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
-                (!agent.schedule && p.value === 'manual') || agent.schedule?.preset === p.value
+              key={opt.value}
+              onClick={() => updateAgent(agent.id, { smartnessLevel: opt.value })}
+              className={`p-2.5 rounded-xl border-2 text-left text-xs transition-all ${
+                agent.smartnessLevel === opt.value
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:border-muted-foreground/30'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-foreground">{p.label}</p>
-                {p.badge && (
-                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${p.badge === 'Recommended' ? 'bg-primary/10 text-primary' : 'bg-status-working/10 text-status-working'}`}>
-                    {p.badge}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">{p.desc}</p>
+              <p className="font-semibold text-foreground mb-0.5">{opt.label}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">{opt.desc}</p>
             </button>
           ))}
         </div>
       </div>
 
-      {agent.schedule && (
-        <div className="p-4 bg-card border border-border rounded-xl">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-primary" />
-            <p className="text-sm font-medium text-foreground">Next run</p>
-          </div>
-          <p className="text-xs text-muted-foreground">{agent.schedule.plainEnglish}</p>
-          {agent.schedule.nextRunAt && (
-            <p className="text-xs text-muted-foreground mt-1">Next: {timeAgo(agent.schedule.nextRunAt)}</p>
-          )}
-        </div>
-      )}
+      <Button className="w-full" onClick={save}>
+        <Check className="w-3.5 h-3.5" /> Save & activate
+      </Button>
     </div>
   );
 };
 
 // ═══════════════════════════════
-// ACTIVITY
+// TRAIL — behind the scenes
 // ═══════════════════════════════
 
-const ActivitySection = ({ agent }: { agent: Agent }) => (
+const TrailSection = ({ agent, runs = [] }: { agent: Agent; runs?: MappedRun[] }) => (
   <div className="space-y-6">
-    <SectionHeader icon={Activity} title="Activity" desc="Recent runs and events" />
-
-    <TaskAssigner agent={agent} />
+    <SectionHeader icon={Terminal} title="Trail" desc="Everything this agent has done behind the scenes" />
 
     {/* Run history */}
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-3">Run history</p>
-      <div className="space-y-2">
-        {agent.runs.slice(0, 20).map(run => (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-muted-foreground">Run history</p>
+      {runs.length === 0 ? (
+        <div className="text-center py-10 border border-dashed border-border rounded-xl px-6">
+          <Terminal className="w-8 h-8 mx-auto text-muted-foreground/40 mb-3" />
+          <p className="text-sm font-medium text-foreground mb-1">No runs yet</p>
+          <p className="text-xs text-muted-foreground max-w-xs mx-auto">Once this agent runs, you'll see the full trail here — file writes, CLI calls, and output.</p>
+        </div>
+      ) : (
+        runs.slice(0, 20).map(run => (
           <div key={run.id} className="p-3 bg-card border border-border rounded-xl">
             <div className="flex items-start gap-2">
               <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
@@ -1396,249 +966,176 @@ const ActivitySection = ({ agent }: { agent: Agent }) => (
                 run.status === 'failed' ? 'bg-destructive' : 'bg-muted-foreground'
               }`} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground">{run.inputSummary}</p>
-                {run.outputSummary && <p className="text-xs text-muted-foreground mt-1">{run.outputSummary}</p>}
+                <p className="text-xs font-medium text-foreground">{run.inputSummary}</p>
+                {run.outputSummary && (
+                  <div className="mt-2 px-2.5 py-2 bg-muted/60 rounded-lg border border-border/50 font-mono text-[10px] text-foreground whitespace-pre-wrap">
+                    {run.outputSummary}
+                  </div>
+                )}
                 {run.errorSummary && (
-                  <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {run.errorSummary}
+                  <p className="text-[11px] text-destructive mt-1.5 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0" /> {run.errorSummary}
                   </p>
                 )}
-                <div className="flex items-center gap-3 mt-1.5">
+                <div className="flex items-center gap-3 mt-2">
                   <RunBadge status={run.status} />
                   <span className="text-[10px] text-muted-foreground">{timeAgo(run.startedAt)}</span>
                   <span className="text-[10px] text-muted-foreground capitalize">{run.trigger}</span>
+                  {run.backendRef && (
+                    <span className="text-[10px] text-muted-foreground font-mono opacity-60">{run.backendRef}</span>
+                  )}
                 </div>
               </div>
             </div>
           </div>
-        ))}
-        {agent.runs.length === 0 && (
-          <div className="text-center py-10 border border-dashed border-border rounded-xl px-6">
-            <Activity className="w-8 h-8 mx-auto text-muted-foreground/60 mb-3" />
-            <p className="text-sm font-medium text-foreground mb-1">No recent runs</p>
-            <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
-              Run this agent once to see what it can do. Give it a simple task to start.
-            </p>
-          </div>
-        )}
-      </div>
+        ))
+      )}
     </div>
 
     {/* Event log */}
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-3">Event log</p>
-      <div className="space-y-0.5">
-        {agent.activities.slice(0, 20).map(act => (
-          <div key={act.id} className="flex gap-3 text-xs py-2 border-b border-border/30 last:border-0">
-            <span className="text-muted-foreground whitespace-nowrap w-14 text-right shrink-0">{timeAgo(act.timestamp)}</span>
-            <div className="min-w-0">
-              <span className="font-medium text-foreground">{act.action}</span>{' '}
-              <span className="text-muted-foreground">{act.detail}</span>
-            </div>
-          </div>
-        ))}
-        {agent.activities.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-4">No activity yet</p>
-        )}
-      </div>
-    </div>
-  </div>
-);
-
-// ═══════════════════════════════
-// ADVANCED
-// ═══════════════════════════════
-
-const AdvancedSection = ({ agent }: { agent: Agent }) => (
-  <div className="space-y-6">
-    <SectionHeader icon={Settings} title="Advanced Settings" desc="Power-user controls and raw configuration" />
-
-    <div className="p-3 bg-muted/50 rounded-lg">
-      <p className="text-xs text-muted-foreground">
-        Most people won't need this section. It gives you direct access to the underlying configuration and OpenClaw document mappings.
-      </p>
-    </div>
-
-    {/* Runtime */}
-    <div className="bg-card border border-border rounded-xl p-4 space-y-4">
-      <p className="text-xs font-semibold text-muted-foreground">How smart should it be?</p>
-      <p className="text-[10px] text-muted-foreground -mt-2">Higher settings can handle harder tasks, but may cost more or feel slower.</p>
+    {agent.activities.length > 0 && (
       <div className="space-y-2">
-        {([
-          { val: 'basic' as SmartLevel, label: 'Quick & Simple', desc: 'For repetitive tasks — sorting, formatting, templates. Fast and cheap.', example: 'Rename files, reformat lists', icon: Zap, badge: null },
-          { val: 'standard' as SmartLevel, label: 'Balanced', desc: 'Handles most work — writing, summaries, Q&A, light analysis. Good default.', example: 'Draft a blog post, review a doc', icon: Brain, badge: 'Recommended' },
-          { val: 'advanced' as SmartLevel, label: 'Deep Thinker', desc: 'For nuanced reasoning, creativity, and complex analysis. Slowest and most expensive.', example: 'Analyze a contract, debug complex code', icon: Rocket, badge: 'Advanced' },
-        ] as const).map(opt => (
-          <button key={opt.val} onClick={() => updateAgent(agent.id, { smartnessLevel: opt.val })}
-            className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
-              agent.smartnessLevel === opt.val ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'
-            }`}
-          >
-            <div className="flex items-center gap-2 mb-0.5">
-              <opt.icon className="w-4 h-4 text-primary" />
-              <span className="text-xs font-semibold text-foreground">{opt.label}</span>
-              {opt.badge && (
-                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${opt.badge === 'Recommended' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                  {opt.badge}
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground ml-6">{opt.desc}</p>
-            <p className="text-[10px] text-muted-foreground/60 ml-6 italic">e.g. {opt.example}</p>
-          </button>
-        ))}
-      </div>
-    </div>
-
-    {/* Where it runs */}
-    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-      <p className="text-xs font-semibold text-muted-foreground">Where does it run?</p>
-      <p className="text-[10px] text-muted-foreground -mt-1">Local: runs on your machine, fully private. Cloud: uses an online AI provider, more powerful.</p>
-      <div className="space-y-2">
-        {([
-          { val: 'local' as RuntimeMode, label: 'On your computer', desc: 'Fully private, works offline. Uses local models.', icon: Cpu, badge: 'Private' },
-          { val: 'cloud' as RuntimeMode, label: 'Online (cloud)', desc: 'More powerful models via the internet. Data leaves your machine.', icon: Cloud, badge: null },
-          { val: 'hybrid' as RuntimeMode, label: 'Both', desc: 'Local when possible, cloud for complex tasks.', icon: RefreshCw, badge: 'Recommended' },
-        ] as const).map(opt => (
-          <button key={opt.val} onClick={() => updateAgent(agent.id, { runtimeMode: opt.val })}
-            className={`w-full p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 ${
-              agent.runtimeMode === opt.val ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/30'
-            }`}
-          >
-            <opt.icon className="w-4 h-4 text-primary shrink-0" />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-foreground">{opt.label}</p>
-                {opt.badge && (
-                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${opt.badge === 'Recommended' ? 'bg-primary/10 text-primary' : 'bg-status-working/10 text-status-working'}`}>
-                    {opt.badge}
-                  </span>
-                )}
+        <p className="text-xs font-semibold text-muted-foreground">Event log</p>
+        <div className="bg-card border border-border rounded-xl divide-y divide-border/30">
+          {agent.activities.slice(0, 30).map(act => (
+            <div key={act.id} className="flex gap-3 text-xs py-2.5 px-3">
+              <span className="text-muted-foreground whitespace-nowrap w-14 text-right shrink-0">{timeAgo(act.timestamp)}</span>
+              <div className="min-w-0">
+                <span className="font-medium text-foreground">{act.action}</span>{' '}
+                <span className="text-muted-foreground">{act.detail}</span>
               </div>
-              <p className="text-[10px] text-muted-foreground">{opt.desc}</p>
             </div>
-          </button>
-        ))}
-      </div>
-    </div>
-
-    {/* Escalation */}
-    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-      <p className="text-xs font-semibold text-muted-foreground">Behavior when stuck</p>
-      <Select value={agent.escalationBehavior} onValueChange={(v: EscalationBehavior) => updateAgent(agent.id, { escalationBehavior: v })}>
-        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="pause-and-wait" className="text-xs">Pause and wait for you</SelectItem>
-          <SelectItem value="retry-once" className="text-xs">Retry once, then pause</SelectItem>
-          <SelectItem value="notify-and-continue" className="text-xs">Notify and keep going</SelectItem>
-          <SelectItem value="ask-for-help" className="text-xs">Ask for help</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-
-    {/* Check-in */}
-    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-      <p className="text-xs font-semibold text-muted-foreground">Check-in frequency</p>
-      <Select value={agent.checkInFrequency} onValueChange={(v: CheckInFrequency) => updateAgent(agent.id, { checkInFrequency: v })}>
-        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="never" className="text-xs">Never</SelectItem>
-          <SelectItem value="hourly" className="text-xs">Every hour</SelectItem>
-          <SelectItem value="daily" className="text-xs">Once a day</SelectItem>
-          <SelectItem value="after-each-task" className="text-xs">After each task</SelectItem>
-          <SelectItem value="when-stuck" className="text-xs">Only when stuck</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-
-    {/* OpenClaw doc mappings */}
-    <div className="bg-card border border-border rounded-xl p-4 space-y-4">
-      <p className="text-xs font-semibold text-muted-foreground">OpenClaw Document Mapping</p>
-      <p className="text-[10px] text-muted-foreground">These map to the underlying workspace files that power your agent.</p>
-
-      <div className="space-y-3">
-        <div>
-          <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-1">
-            <Users className="w-3 h-3" /> Audience <span className="text-muted-foreground/50">· USER.md</span>
-          </p>
-          <EditableField label="" value={agent.audienceNotes || ''} onSave={v => updateAgent(agent.id, { audienceNotes: v })} multiline placeholder="Who is this agent helping?" />
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-1">
-            <Wrench className="w-3 h-3" /> Environment <span className="text-muted-foreground/50">· TOOLS.md</span>
-          </p>
-          <EditableField label="" value={agent.environmentNotes || ''} onSave={v => updateAgent(agent.id, { environmentNotes: v })} multiline placeholder="What tools and systems does it use?" />
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-1">
-            <Database className="w-3 h-3" /> Memory <span className="text-muted-foreground/50">· MEMORY.md</span>
-          </p>
-          <EditableField label="" value={agent.memoryNotes || ''} onSave={v => updateAgent(agent.id, { memoryNotes: v })} multiline placeholder="What should it remember?" />
+          ))}
         </div>
       </div>
-    </div>
+    )}
   </div>
 );
 
 // ═══════════════════════════════
-// SAFETY SUMMARY CARD
+// WORKSPACE — files & Obsidian
 // ═══════════════════════════════
 
-const SafetySummaryCard = ({ agent }: { agent: Agent }) => {
-  const checks = [
-    {
-      label: agent.runtimeMode === 'local' ? 'Runs on your device' : agent.runtimeMode === 'cloud' ? 'Uses cloud models' : 'Uses local + cloud models',
-      icon: agent.runtimeMode === 'local' ? Cpu : Cloud,
-      ok: true,
-    },
-    {
-      label: agent.backgroundEnabled ? 'Runs in background' : 'Manual only',
-      icon: agent.backgroundEnabled ? RefreshCw : Play,
-      ok: true,
-    },
-    {
-      label: agent.permissions?.networkAccess ? 'Can access the internet' : 'No internet access',
-      icon: Shield,
-      ok: true,
-    },
-    {
-      label: agent.permissions?.toolScopes?.length
-        ? `Can use: ${agent.permissions.toolScopes.slice(0, 3).join(', ')}${agent.permissions.toolScopes.length > 3 ? ` +${agent.permissions.toolScopes.length - 3} more` : ''}`
-        : 'No tools configured',
-      icon: Wrench,
-      ok: true,
-    },
-    {
-      label: !agent.permissions ? 'No guardrails set — consider adding rules' : '',
-      icon: AlertTriangle,
-      ok: !!agent.permissions,
-      warning: !agent.permissions,
-    },
-  ].filter(c => c.label);
+const WorkspaceSection = ({ agent }: { agent: Agent }) => {
+  const [editingPath, setEditingPath] = useState(false);
+  const [pathDraft, setPathDraft] = useState(agent.workspacePath ?? '');
+  const [editingVault, setEditingVault] = useState(false);
+  const [vaultDraft, setVaultDraft] = useState(agent.obsidianVaultPath ?? '');
+
+  const workspaceFiles = ['AGENTS.md', 'USER.md', 'TOOLS.md', 'MEMORY.md'];
+
+  const fileDesc: Record<string, string> = {
+    'AGENTS.md': 'Role, instructions, personality',
+    'USER.md':   'Who the agent is helping',
+    'TOOLS.md':  'Available tools and environment',
+    'MEMORY.md': 'What to remember between runs',
+  };
 
   return (
-    <div className="p-4 bg-card border border-border rounded-xl">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-          <Shield className="w-3.5 h-3.5" /> Safety summary
-        </p>
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-          checks.some(c => c.warning) ? 'bg-status-waiting/10 text-status-waiting' : 'bg-status-working/10 text-status-working'
-        }`}>
-          {checks.some(c => c.warning) ? 'Needs review' : 'Looking good'}
-        </span>
-      </div>
-      <div className="space-y-1.5">
-        {checks.map((c, i) => {
-          const Icon = c.icon;
-          return (
-            <div key={i} className="flex items-center gap-2 text-xs">
-              <Icon className={`w-3 h-3 shrink-0 ${c.warning ? 'text-status-waiting' : 'text-muted-foreground'}`} />
-              <span className={c.warning ? 'text-status-waiting' : 'text-foreground'}>{c.label}</span>
+    <div className="space-y-6">
+      <SectionHeader icon={FolderOpen} title="Workspace" desc="Where this agent lives on disk" />
+
+      {!agent.workspacePath ? (
+        <div className="text-center py-10 border border-dashed border-status-waiting/40 bg-status-waiting/5 rounded-xl px-6">
+          <FolderOpen className="w-8 h-8 mx-auto text-status-waiting/60 mb-3" />
+          <p className="text-sm font-medium text-foreground mb-1">No workspace set up yet</p>
+          <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
+            A workspace is a folder on your computer where this agent's documents live. It's what OpenClaw reads before every task.
+          </p>
+          <Button size="sm" onClick={() => {
+            const path = `~/homeroom-workspaces/${agent.name.toLowerCase().replace(/\s+/g, '-')}`;
+            updateAgent(agent.id, { workspacePath: path });
+            toast.success('Workspace created');
+          }}>
+            <FolderOpen className="w-3.5 h-3.5" /> Create workspace
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* Workspace path */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-foreground">Workspace folder</p>
+              <button onClick={() => setEditingPath(true)} className="text-[10px] text-muted-foreground hover:text-foreground">Change</button>
             </div>
-          );
-        })}
-      </div>
+            {editingPath ? (
+              <div className="space-y-2">
+                <Input value={pathDraft} onChange={e => setPathDraft(e.target.value)} className="text-xs font-mono" autoFocus onKeyDown={e => { if (e.key === 'Enter') { updateAgent(agent.id, { workspacePath: pathDraft }); setEditingPath(false); toast.success('Path updated'); } if (e.key === 'Escape') setEditingPath(false); }} />
+                <div className="flex gap-2">
+                  <Button size="sm" className="h-7 text-xs" onClick={() => { updateAgent(agent.id, { workspacePath: pathDraft }); setEditingPath(false); toast.success('Path updated'); }}>Save</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingPath(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs font-mono text-muted-foreground bg-muted px-3 py-2 rounded-lg">{agent.workspacePath}</p>
+            )}
+
+            {/* File list */}
+            <div className="border-t border-border/50 pt-3 space-y-1">
+              {workspaceFiles.map(file => (
+                <div key={file} className="flex items-center gap-3 py-1.5 group">
+                  <FileCode className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-mono text-xs text-foreground">{file}</span>
+                    <span className="text-[10px] text-muted-foreground ml-2">{fileDesc[file]}</span>
+                  </div>
+                  <button className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-muted-foreground hover:text-foreground">Open</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Obsidian vault */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <BookMarked className="w-4 h-4 text-primary" />
+              <p className="text-xs font-semibold text-foreground">Obsidian vault</p>
+              {agent.obsidianVaultPath && (
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-status-working/10 text-status-working ml-auto">Connected</span>
+              )}
+            </div>
+
+            {agent.obsidianVaultPath ? (
+              <>
+                <p className="text-xs font-mono text-muted-foreground bg-muted px-3 py-2 rounded-lg">{agent.obsidianVaultPath}</p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1 text-xs h-8" onClick={() => toast.success('Opening in Obsidian…')}>
+                    <BookMarked className="w-3 h-3" /> Open in Obsidian
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-xs h-8 text-muted-foreground" onClick={() => { updateAgent(agent.id, { obsidianVaultPath: null }); toast.success('Vault unlinked'); }}>
+                    Unlink
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[11px] text-muted-foreground">Link an Obsidian vault to edit this agent's docs with your normal notes workflow.</p>
+                {editingVault ? (
+                  <div className="space-y-2">
+                    <Input value={vaultDraft} onChange={e => setVaultDraft(e.target.value)} placeholder="~/Documents/MyVault" className="text-xs font-mono" autoFocus />
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-7 text-xs" onClick={() => { updateAgent(agent.id, { obsidianVaultPath: vaultDraft }); setEditingVault(false); toast.success('Vault linked'); }}>Link vault</Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingVault(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => setEditingVault(true)}>
+                    <BookMarked className="w-3 h-3" /> Link Obsidian vault
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* OpenClaw note */}
+          <div className="flex items-start gap-2 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">
+            <GitBranch className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
+            <p className="text-[11px] text-muted-foreground">
+              This workspace is what OpenClaw reads on disk. Every edit you make in Homeroom syncs here — and vice versa.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -1650,7 +1147,7 @@ const SafetySummaryCard = ({ agent }: { agent: Agent }) => {
 const SectionHeader = ({ icon: Icon, title, desc }: { icon: React.ElementType; title: string; desc: string }) => (
   <div className="flex items-center gap-3 mb-2">
     <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-      <Icon className="w-4.5 h-4.5 text-primary" />
+      <Icon className="w-[18px] h-[18px] text-primary" />
     </div>
     <div>
       <h2 className="font-display font-bold text-lg text-foreground">{title}</h2>
@@ -1699,31 +1196,28 @@ const EditableField = ({ label, value, onSave, multiline, placeholder, tall }: {
   );
 };
 
-const TaskAssigner = ({ agent }: { agent: Agent }) => {
+const TaskAssigner = ({ agent, textareaRef, onRun }: { agent: Agent; textareaRef?: React.RefObject<HTMLTextAreaElement>; onRun?: (input: string) => void }) => {
   const [input, setInput] = useState('');
 
   const assign = () => {
     if (!input.trim()) return;
-    updateAgent(agent.id, {
-      currentTask: input.trim(), state: 'working', zone: 'work',
-      lastRunAt: new Date(), lastRunStatus: 'running',
-      activities: [
-        { id: `act-${Date.now()}`, timestamp: new Date(), action: 'Task Assigned', detail: input.trim() },
-        ...agent.activities,
-      ],
-      runs: [
-        { id: `run-${Date.now()}`, agentId: agent.id, trigger: 'manual', status: 'running', startedAt: new Date(), finishedAt: null, inputSummary: input.trim(), outputSummary: null, errorSummary: null, backendRef: null },
-        ...agent.runs,
-      ],
-    });
+    if (onRun) {
+      onRun(input.trim());
+    } else {
+      // Fallback: local store update (demo / offline mode)
+      updateAgent(agent.id, {
+        currentTask: input.trim(), state: 'working', zone: 'work',
+        lastRunAt: new Date(), lastRunStatus: 'running',
+      });
+      toast.success(`Task assigned to ${agent.name}`);
+    }
     setInput('');
-    toast.success(`Task assigned to ${agent.name}`);
   };
 
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <p className="text-xs font-semibold text-muted-foreground mb-2">Run now</p>
-      <Textarea value={input} onChange={e => setInput(e.target.value)} placeholder={`What should ${agent.name} work on?`} className="min-h-[60px] text-sm resize-none" />
+      <Textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)} placeholder={`What should ${agent.name} work on?`} className="min-h-[60px] text-sm resize-none" onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) assign(); }} />
       <Button size="sm" className="w-full mt-2 text-xs" disabled={!input.trim()} onClick={assign}>
         <Play className="w-3 h-3" /> Assign & run
       </Button>

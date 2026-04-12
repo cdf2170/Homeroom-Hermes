@@ -22,6 +22,9 @@ export const AgentProfileSchema = AgentSchema.extend({
 
   // Runtime preference (UI-level concept → used in trust checks)
   runtimePreference: RuntimeMode.optional(),
+
+  // Specific model to use for runs (e.g. "anthropic/claude-3.5-sonnet")
+  modelRef: z.string().nullable().optional(),
 });
 
 export type AgentProfile = z.infer<typeof AgentProfileSchema>;

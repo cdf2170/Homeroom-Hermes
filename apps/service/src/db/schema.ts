@@ -34,6 +34,9 @@ export const agents = sqliteTable("agents", {
   notifyOnComplete: integer("notify_on_complete", { mode: "boolean" }).notNull().default(true),
   notifyOnError: integer("notify_on_error", { mode: "boolean" }).notNull().default(true),
 
+  // Model selection — e.g. "anthropic/claude-3.5-sonnet", "openai/gpt-4o"
+  modelRef: text("model_ref"),
+
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

@@ -10,17 +10,26 @@ import AuditPage from "./pages/AuditPage";
 import TemplatesPage from "./pages/TemplatesPage";
 import SettingsPage from "./pages/SettingsPage";
 import CreateAgentPage from "./pages/CreateAgentPage";
-import FrontDeskPage from "./pages/FrontDeskPage";
 import PluginsPage from "./pages/PluginsPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
 import DoneWorkPage from "./pages/DoneWorkPage";
 import AgentWelcomePage from "./pages/AgentWelcomePage";
 import SecureSetupPage from "./pages/SecureSetupPage";
+import SetupPage from "./pages/SetupPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import ActivityTrustPage from "./pages/ActivityTrustPage";
 import NotFound from "./pages/NotFound.tsx";
 import { useBackendSync } from "@/hooks/useBackendSync";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => (
   <div className="h-screen flex w-full overflow-hidden">
@@ -33,11 +42,11 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => (
 
 const AppRoutes = () => (
   <Routes>
-    <Route path="/" element={<AppLayout><FrontDeskPage /></AppLayout>} />
+    <Route path="/" element={<AppLayout><OfficePage /></AppLayout>} />
     <Route path="/front-desk" element={<Navigate to="/" replace />} />
+    <Route path="/office" element={<Navigate to="/" replace />} />
     <Route path="/done-work" element={<AppLayout><DoneWorkPage /></AppLayout>} />
     <Route path="/approvals" element={<AppLayout><ApprovalsPage /></AppLayout>} />
-    <Route path="/office" element={<AppLayout><OfficePage /></AppLayout>} />
     <Route path="/agents" element={<AppLayout><AgentsPage /></AppLayout>} />
     <Route path="/agents/:id" element={<AppLayout><AgentProfilePage /></AppLayout>} />
     <Route path="/agents/:id/welcome" element={<AgentWelcomePage />} />
@@ -48,7 +57,9 @@ const AppRoutes = () => (
     <Route path="/plugins" element={<Navigate to="/settings" replace />} />
     <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
     <Route path="/create-agent" element={<AppLayout><CreateAgentPage /></AppLayout>} />
-    <Route path="/setup" element={<SecureSetupPage />} />
+    <Route path="/onboarding" element={<OnboardingPage />} />
+    <Route path="/setup" element={<SetupPage />} />
+    <Route path="/security-setup" element={<SecureSetupPage />} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

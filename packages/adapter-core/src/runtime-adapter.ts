@@ -29,8 +29,10 @@ export interface RuntimeAdapter {
   /**
    * Start a run for an agent.
    * Returns a handle immediately; use getRun to poll status.
+   * @param modelRef  Optional model identifier (e.g. "anthropic/claude-3.5-sonnet").
+   *                  If provided, the adapter should prefer this model for the run.
    */
-  runAgent(backendRef: string, input: string): Promise<AdapterRunHandle>;
+  runAgent(backendRef: string, input: string, modelRef?: string | null): Promise<AdapterRunHandle>;
 
   /** Cancel an in-flight run. No-op if already complete. */
   cancelRun(runRef: string): Promise<void>;

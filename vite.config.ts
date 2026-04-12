@@ -11,12 +11,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8080,
+    port: parseInt(process.env.PORT ?? "8080", 10),
     hmr: {
       overlay: false,
     },
   },
-  plugins: [react(), tsconfigPaths(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), tsconfigPaths({ ignoreConfigErrors: true }), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

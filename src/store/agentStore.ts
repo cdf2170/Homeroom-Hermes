@@ -1,10 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { Agent } from '@/types/agent';
 import { AgentSummaryView } from '@/types/views';
-import { mockAgents } from '@/data/mockAgents';
-
-// Simple external store for agents shared across components
-let agents: Agent[] = [...mockAgents];
+// ── Simple external store for agents shared across components ─────────────────
+let agents: Agent[] = [];
+let backendConnected = false;
 let listeners: Set<() => void> = new Set();
 
 function emitChange() {
@@ -20,19 +19,76 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+// Fields that the backend UpdateAgentRequest accepts.
+// Appearance, workspacePath, obsidianVaultPath, etc. are UI-only and skipped.
+const BACKEND_FIELDS = new Set([
+  'name', 'purpose', 'role', 'instructions',
+  'enabled', 'backgroundEnabled', 'runtimeMode', 'smartnessLevel',
+  'sceneRoomId',
+  'audienceNotes', 'environmentNotes', 'memoryNotes',
+  'checkInFrequency', 'escalationBehavior', 'taskStyle',
+  'notifyOnComplete', 'notifyOnError',
+]);
+
+// Map frontend field names to backend field names where they differ.
+const FIELD_MAP: Record<string, string> = {
+  personality: 'instructions',   // personality textarea → backend instructions field
+  zone: 'sceneRoomId',           // frontend zone → backend sceneRoomId via ZONE_MAP
+};
+
+const ZONE_TO_ROOM: Record<string, string> = {
+  work: 'focus_room', lounge: 'lounge', meeting: 'meeting',
+  kitchen: 'kitchen', server: 'server', quiet: 'quiet',
+};
+
+function toBackendUpdates(updates: Partial<Agent>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(updates)) {
+    const backendKey = FIELD_MAP[k] ?? k;
+    if (!BACKEND_FIELDS.has(backendKey)) continue;
+    if (backendKey === 'sceneRoomId' && typeof v === 'string') {
+      out[backendKey] = ZONE_TO_ROOM[v] ?? v;
+    } else {
+      out[backendKey] = v;
+    }
+  }
+  return out;
+}
+
 export function addAgent(agent: Agent) {
   agents = [...agents, agent];
   emitChange();
 }
 
 export function updateAgent(id: string, updates: Partial<Agent>) {
+  // Immediate optimistic update for responsive UI
   agents = agents.map(a => a.id === id ? { ...a, ...updates } : a);
   emitChange();
+
+  // Async persist to backend — fire-and-forget, non-blocking
+  if (backendConnected) {
+    const backendUpdates = toBackendUpdates(updates);
+    if (Object.keys(backendUpdates).length > 0) {
+      import('@/services/backendApi').then(({ backendApi }) => {
+        backendApi.updateAgent(id, backendUpdates).catch(err =>
+          console.warn('[agentStore] Failed to persist update:', err),
+        );
+      });
+    }
+  }
 }
 
 export function removeAgent(id: string) {
   agents = agents.filter(a => a.id !== id);
   emitChange();
+
+  if (backendConnected) {
+    import('@/services/backendApi').then(({ backendApi }) => {
+      backendApi.deleteAgent(id).catch(err =>
+        console.warn('[agentStore] Failed to delete agent:', err),
+      );
+    });
+  }
 }
 
 export function useAgents(): Agent[] {
@@ -40,13 +96,11 @@ export function useAgents(): Agent[] {
 }
 
 /**
- * Called by useBackendSync when the real backend is available.
+ * Called by useBackendSync / useAgents query when the real backend is available.
  * Replaces mock agents with live data from the service.
- * AgentSummaryView is compatible with Agent for display purposes.
  */
 export function setAgentsFromBackend(backendAgents: AgentSummaryView[]) {
-  // Merge backend agents into the Agent shape the store expects.
-  // Fields not returned by the summary endpoint get sensible defaults.
+  backendConnected = true;
   agents = backendAgents.map(a => ({
     id:                 a.id,
     name:               a.name,
@@ -73,11 +127,11 @@ export function setAgentsFromBackend(backendAgents: AgentSummaryView[]) {
     runCount:           a.runCount,
     needsAttention:     a.needsAttention,
     hasPermissions:     a.hasPermissions,
-    appearance:         { bodyType: 'androgynous', skinTone: '#F5CBA7', hairStyle: 'short', hairColor: '#4A4A4A', outfitStyle: 'casual', outfitColor: a.outfitColor } as any,
+    appearance:         { bodyType: 'masculine', skinTone: '#F5CBA7', hairStyle: 'short', hairColor: '#4A4A4A', outfitStyle: 'casual', outfitColor: a.outfitColor } as any,
     permissionProfileId: null,
-    checkInFrequency:   'daily' as const,
-    escalationBehavior: 'notify' as const,
-    taskStyle:          'balanced' as const,
+    checkInFrequency:   'on_completion' as const,
+    escalationBehavior: 'ask' as const,
+    taskStyle:          'methodical' as const,
     notifyOnComplete:   true,
     notifyOnError:      true,
     audienceNotes:      '',

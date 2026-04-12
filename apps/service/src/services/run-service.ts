@@ -14,6 +14,10 @@ export function createRunService(
   auditService: AuditService,
 ) {
   return {
+    listAll(limit?: number): RunRecord[] {
+      return runRepo.findAll(limit);
+    },
+
     listForAgent(agentId: string, limit?: number): RunRecord[] {
       agentRepo.findById(agentId); // throws if not found
       return runRepo.findByAgentId(agentId, limit);
@@ -53,7 +57,7 @@ export function createRunService(
       });
 
       // Kick off adapter run (fire-and-forget; poll in background)
-      adapter.runAgent(backendRef, input).then(async (handle) => {
+      adapter.runAgent(backendRef, input, agent.modelRef ?? undefined).then(async (handle) => {
         // Attach the adapter ref
         runRepo.update(record.id, { backendRef: handle.runRef } as Partial<RunRecord>);
 
