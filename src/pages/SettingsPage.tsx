@@ -237,16 +237,16 @@ const SettingsPage: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-1.5">
                     <Label className="text-sm font-medium">Connection Status</Label>
-                    <HelpTip text="This shows whether Homeroom is connected to a real AI backend. In Demo Mode, agents simulate work so you can explore the interface safely without using any credits or API calls." />
+                    <HelpTip text="Shows whether Homeroom can reach the local backend service at localhost:5174. When disconnected, agent runs and settings changes will not persist." />
                   </div>
-                  <p className="text-xs text-muted-foreground">Shows whether agents are running real tasks or just previewing in demo mode</p>
+                  <p className="text-xs text-muted-foreground">Backend service connection status</p>
                 </div>
                 {connectionStatus === 'connected' ? (
                   <span className="px-3 py-1 bg-status-working/15 text-status-working text-xs font-medium rounded-full">Connected</span>
                 ) : connectionStatus === 'checking' ? (
-                  <span className="px-3 py-1 bg-muted text-muted-foreground text-xs font-medium rounded-full">Checking…</span>
+                  <span className="px-3 py-1 bg-muted text-muted-foreground text-xs font-medium rounded-full">Checking...</span>
                 ) : (
-                  <span className="px-3 py-1 bg-status-waiting/15 text-status-waiting text-xs font-medium rounded-full">Demo Mode</span>
+                  <span className="px-3 py-1 bg-destructive/15 text-destructive text-xs font-medium rounded-full">Disconnected</span>
                 )}
               </div>
             </div>

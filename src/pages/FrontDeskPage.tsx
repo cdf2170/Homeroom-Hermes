@@ -1,30 +1,26 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import StateCoverage from '@/components/StateCoverage';
-import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 import {
   Building2, Users, AlertTriangle, ArrowRight, Shield,
-  RefreshCw, Settings, Plus, Zap, Activity,
+  RefreshCw, Settings, Plus, Zap, Activity, Loader2,
 } from 'lucide-react';
-import api from '@/services/mockApi';
+import { useAgents, useTrustFindings, useRuntimeHealth } from '@/hooks/api/useAgents';
 import { useConnectionStatus } from '@/lib/connection';
 
 const FrontDeskPage: React.FC = () => {
   const connectionStatus = useConnectionStatus();
   const navigate = useNavigate();
-  const summaries = api.listAgents();
-  const findings = api.getTrustFindings();
-  const health = api.getRuntimeHealth();
-  const loading = useSimulatedLoading(400);
+  const { data: summaries = [], isLoading: agentsLoading } = useAgents();
+  const { data: backendFindings = [] } = useTrustFindings();
+  const { data: health } = useRuntimeHealth();
 
-  const active = summaries.filter(a => a.state === 'working' || a.state === 'walking');
+  const active = summaries.filter(a => a.state === 'working');
   const attention = summaries.filter(a => a.needsAttention);
   const noPerms = summaries.filter(a => !a.hasPermissions && a.enabled);
   const bgUnsafe = summaries.filter(a => a.backgroundEnabled && !a.hasPermissions);
-  const reviewFindings = findings.filter(f => f.severity === 'review' || f.severity === 'risky');
+  const reviewFindings = backendFindings.filter(f => f.level === 'warning' || f.level === 'risk');
 
-  // Build suggested actions with priority coloring
   const suggestions: { icon: React.ElementType; text: string; action: () => void; border: string }[] = [];
 
   attention.forEach(a => {
@@ -37,7 +33,7 @@ const FrontDeskPage: React.FC = () => {
   noPerms.forEach(a => {
     suggestions.push({
       icon: Shield, border: 'border-l-red-400',
-      text: `${a.name} has no guardrails — add permissions`,
+      text: `${a.name} has no guardrails -- add permissions`,
       action: () => navigate(`/agents/${a.id}`),
     });
   });
@@ -50,7 +46,7 @@ const FrontDeskPage: React.FC = () => {
       });
     }
   });
-  if (summaries.length === 0) {
+  if (summaries.length === 0 && !agentsLoading) {
     suggestions.push({
       icon: Plus, border: 'border-l-blue-400',
       text: 'Create your first agent to get started',
@@ -58,9 +54,9 @@ const FrontDeskPage: React.FC = () => {
     });
   }
 
-  // Pulse message
   const pulseMessage = () => {
-    if (summaries.length === 0) return { text: 'Office is empty — create an agent to begin.', mood: 'neutral' as const };
+    if (agentsLoading) return { text: 'Loading...', mood: 'neutral' as const };
+    if (summaries.length === 0) return { text: 'Office is empty -- create an agent to begin.', mood: 'neutral' as const };
     if (attention.length > 0) return { text: `${attention.length} agent${attention.length !== 1 ? 's' : ''} waiting on you.`, mood: 'attention' as const };
     if (active.length > 0) return { text: `${active.length} agent${active.length !== 1 ? 's' : ''} working. Everything's running.`, mood: 'working' as const };
     return { text: 'All quiet. Your agents are standing by.', mood: 'calm' as const };
@@ -76,8 +72,6 @@ const FrontDeskPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <StateCoverage loading={loading} loadingRows={6}>
-
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -97,18 +91,18 @@ const FrontDeskPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-4 mt-3 pl-[22px] text-[11px] text-muted-foreground">
           <span>{summaries.length} agent{summaries.length !== 1 ? 's' : ''}</span>
-          <span className="text-border">·</span>
+          <span className="text-border">.</span>
           <span>{active.length} active</span>
           {reviewFindings.length > 0 && (
             <>
-              <span className="text-border">·</span>
+              <span className="text-border">.</span>
               <span className="text-amber-500">{reviewFindings.length} issue{reviewFindings.length !== 1 ? 's' : ''}</span>
             </>
           )}
           {connectionStatus === 'disconnected' && (
             <>
-              <span className="text-border">·</span>
-              <span className="text-muted-foreground/60">Demo mode</span>
+              <span className="text-border">.</span>
+              <span className="text-muted-foreground/60">Backend unreachable</span>
             </>
           )}
         </div>
@@ -141,17 +135,17 @@ const FrontDeskPage: React.FC = () => {
           </div>
         ) : (
           <div className="p-6 text-center rounded-xl border border-border bg-card">
-            <p className="text-sm text-muted-foreground">All clear — nothing needs your attention right now.</p>
+            <p className="text-sm text-muted-foreground">All clear -- nothing needs your attention right now.</p>
           </div>
         )}
       </section>
 
-      {/* Connection status — only when disconnected */}
+      {/* Connection status */}
       {connectionStatus === 'disconnected' && (
         <div className="p-4 border border-border rounded-xl flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-foreground">Not connected to a backend</p>
-            <p className="text-xs text-muted-foreground">Set up models and connections to make your agents do real work.</p>
+            <p className="text-sm font-medium text-foreground">Backend service not reachable</p>
+            <p className="text-xs text-muted-foreground">Start the backend at localhost:5174 to manage agents.</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
             <Settings className="w-4 h-4" /> Set up
@@ -161,8 +155,6 @@ const FrontDeskPage: React.FC = () => {
       {connectionStatus === 'connected' && (
         <p className="text-[11px] text-muted-foreground/50 text-center">Connected to local backend</p>
       )}
-
-      </StateCoverage>
     </div>
   );
 };

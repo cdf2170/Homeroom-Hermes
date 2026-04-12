@@ -116,7 +116,7 @@ export class HermesAdapter implements RuntimeAdapter {
         schedulerReachable: false,
         modelsAvailable: [],
         warnings: [
-          "Hermes CLI not found. Install with: npm install -g @nousresearch/hermes-agent",
+          "Hermes CLI not found. Install with: curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash",
         ],
         checkedAt: new Date().toISOString(),
       };

@@ -254,7 +254,7 @@ const ApprovalsPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <Inbox className="w-5 h-5 text-primary" />
             <h1 className="font-display font-bold text-2xl text-foreground">Your Desk</h1>
-            <span className="px-2 py-0.5 bg-muted text-muted-foreground text-[10px] font-medium rounded-full border border-border">Demo</span>
+            <span className="px-2 py-0.5 bg-muted text-muted-foreground text-[10px] font-medium rounded-full border border-border">Preview -- not yet wired to backend</span>
             {totalBadge > 0 && (
               <span className="px-2 py-0.5 bg-status-waiting/15 text-status-waiting text-xs font-bold rounded-full">
                 {totalBadge} pending

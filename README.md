@@ -50,17 +50,20 @@ With `-m <model>` appended if you have selected a specific model for the agent. 
 - [hermes-agent](https://github.com/NousResearch/hermes-agent) installed and on your PATH
 - At least one configured AI provider API key
 
-Install hermes-agent:
+Install hermes-agent using the official installer:
 
 ```sh
-npm install -g @nousresearch/hermes-agent
+curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
 ```
 
-Verify installation:
+Then reload your shell and verify:
 
 ```sh
+source ~/.zshrc   # or: source ~/.bashrc
 hermes --version
 ```
+
+See the [hermes-agent repo](https://github.com/NousResearch/hermes-agent) for platform-specific notes (WSL2, Termux, etc.).
 
 ---
 
