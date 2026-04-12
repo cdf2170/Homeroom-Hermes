@@ -15,9 +15,9 @@ import {
 import { AI_MODELS, COST_LABELS, PROVIDERS, AIModel, PROVIDER_INFO } from '@/data/models';
 import {
   useModelStore, getAgentModel, setAgentModel, toggleFavorite, isFavorite,
-  addCustomModel, hasProviderKey,
+  addCustomModel, hasProviderKey, setProviderKey, removeProviderKey,
 } from '@/store/modelConfigStore';
-import { useCredentials } from '@/hooks/api/useAgents';
+import { useCredentials, useSaveCredential, useDeleteCredential } from '@/hooks/api/useAgents';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -126,9 +126,12 @@ const ProviderKeySetup: React.FC<{
   onCancel: () => void;
 }> = ({ provider, onComplete, onCancel }) => {
   const info = PROVIDER_INFO[provider];
-  const [key, setKey] = useState('');
+  const [key, setLocalKey] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const existingKey = getProviderKey(provider);
+  const saveCred = useSaveCredential();
+  const deleteCred = useDeleteCredential();
+  const { data: credentials = [] } = useCredentials();
+  const existingCred = credentials.find(c => c.provider === provider);
 
   if (!info) {
     return (
@@ -139,14 +142,19 @@ const ProviderKeySetup: React.FC<{
     );
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!key.trim()) return;
-    setProviderKey(provider, key.trim());
-    toast.success(`${info.name} API key saved!`);
-    onComplete();
+    try {
+      await saveCred.mutateAsync({ provider, key: key.trim() });
+      setProviderKey(provider, ''); // mark connected in UI cache
+      toast.success(`${info.name} API key saved to encrypted storage`);
+      onComplete();
+    } catch {
+      // error toast shown by mutation
+    }
   };
 
-  const maskedKey = existingKey ? existingKey.slice(0, 8) + '\u2022\u2022\u2022' + existingKey.slice(-4) : null;
+  const maskedKey = existingCred?.masked ?? null;
 
   return (
     <div className="p-3 space-y-3">
@@ -188,7 +196,7 @@ const ProviderKeySetup: React.FC<{
                   type={showKey ? 'text' : 'password'}
                   placeholder={info.keyPlaceholder || 'Paste your API key'}
                   value={key}
-                  onChange={e => setKey(e.target.value)}
+                  onChange={e => setLocalKey(e.target.value)}
                   className="h-7 text-xs font-mono pr-8"
                 />
                 <button
@@ -209,15 +217,18 @@ const ProviderKeySetup: React.FC<{
       </div>
 
       <div className="flex gap-1.5">
-        {existingKey ? (
+        {existingCred ? (
           <>
             <Button size="sm" className="text-xs h-7 flex-1" onClick={onComplete}>
-              <Check className="w-3 h-3" /> Use this key
+              <Check className="w-3 h-3" /> Already connected
             </Button>
-            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => {
-              setProviderKey(provider, '');
-              setKey('');
-              toast.success('Key removed');
+            <Button size="sm" variant="outline" className="text-xs h-7" onClick={async () => {
+              try {
+                await deleteCred.mutateAsync(provider);
+                removeProviderKey(provider);
+                setLocalKey('');
+                toast.success('Key removed');
+              } catch {}
             }}>
               <Trash2 className="w-3 h-3" />
             </Button>

@@ -51,15 +51,19 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   });
 
   // Plugins
+  const allowRemoteOrigins = process.env["ALLOW_REMOTE_ORIGINS"] === "true";
   await app.register(cors, {
-    // Allow any localhost port + Lovable hosted previews
+    // Default: localhost only. Set ALLOW_REMOTE_ORIGINS=true to open to preview hosts.
     origin: (origin, cb) => {
       if (
         !origin ||
         origin.startsWith("http://localhost") ||
-        origin.startsWith("http://127.0.0.1") ||
-        origin.endsWith(".lovable.app") ||
-        origin.endsWith(".lovableproject.com")
+        origin.startsWith("http://127.0.0.1")
+      ) {
+        cb(null, true);
+      } else if (
+        allowRemoteOrigins &&
+        (origin.endsWith(".lovable.app") || origin.endsWith(".lovableproject.com"))
       ) {
         cb(null, true);
       } else {

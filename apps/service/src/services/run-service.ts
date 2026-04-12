@@ -57,52 +57,85 @@ export function createRunService(
       });
 
       // Kick off adapter run (fire-and-forget; poll in background)
+      const timeoutSeconds = 120;
       adapter.runAgent(backendRef, input, agent.modelRef ?? undefined).then(async (handle) => {
         // Attach the adapter ref
         runRepo.update(record.id, { backendRef: handle.runRef } as Partial<RunRecord>);
 
-        // Poll until the adapter settles (simple retry loop — max 30 s)
-        const maxWaitMs = 30_000;
-        const pollIntervalMs = 500;
+        // Poll until the adapter settles
+        const maxWaitMs = timeoutSeconds * 1000;
+        const pollIntervalMs = 1000;
         const deadline = Date.now() + maxWaitMs;
+        let settled = false;
 
         while (Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, pollIntervalMs));
-          const latest = await adapter.getRun(handle.runRef);
-          if (latest.status === "running") continue;
+          try {
+            const latest = await adapter.getRun(handle.runRef);
+            if (latest.status === "running") continue;
 
-          // Settled
-          const finalStatus = latest.status as RunRecord["status"];
+            // Settled
+            settled = true;
+            const finalStatus = latest.status as RunRecord["status"];
+            runRepo.update(record.id, {
+              status: finalStatus,
+              finishedAt: latest.finishedAt ?? new Date().toISOString(),
+              outputSummary: latest.outputSummary.slice(0, 2000),
+              errorSummary: latest.errorSummary?.slice(0, 2000) ?? null,
+            });
+
+            agentRepo.update(agentId, {
+              lastRunAt: latest.finishedAt ?? new Date().toISOString(),
+              lastRunStatus: finalStatus,
+            });
+
+            auditService.append({
+              actor: "system",
+              sourceMode: "system",
+              eventType: finalStatus === "completed" ? "run.completed" : "run.failed",
+              targetType: "run",
+              targetId: record.id,
+              summary: `Run ${finalStatus} for agent "${agent.name}"`,
+              permissionContext: null,
+              runId: record.id,
+            });
+            break;
+          } catch {
+            // Adapter poll error — keep trying until deadline
+          }
+        }
+
+        // If we hit the deadline without settling, persist timeout as failure
+        if (!settled) {
           runRepo.update(record.id, {
-            status: finalStatus,
-            finishedAt: latest.finishedAt ?? new Date().toISOString(),
-            outputSummary: latest.outputSummary.slice(0, 2000),
-            errorSummary: latest.errorSummary?.slice(0, 2000) ?? null,
+            status: "failed",
+            finishedAt: new Date().toISOString(),
+            errorSummary: `Run timed out after ${timeoutSeconds}s without completing`,
           });
-
           agentRepo.update(agentId, {
-            lastRunAt: latest.finishedAt ?? new Date().toISOString(),
-            lastRunStatus: finalStatus,
+            lastRunAt: new Date().toISOString(),
+            lastRunStatus: "failed",
           });
-
           auditService.append({
             actor: "system",
             sourceMode: "system",
-            eventType: finalStatus === "completed" ? "run.completed" : "run.failed",
+            eventType: "run.failed",
             targetType: "run",
             targetId: record.id,
-            summary: `Run ${finalStatus} for agent "${agent.name}"`,
+            summary: `Run timed out for agent "${agent.name}" after ${timeoutSeconds}s`,
             permissionContext: null,
             runId: record.id,
           });
-          break;
         }
-      }).catch(() => {
-        // Best-effort: mark run as failed if adapter throws
+      }).catch((err) => {
         runRepo.update(record.id, {
           status: "failed",
           finishedAt: new Date().toISOString(),
-          errorSummary: "Adapter error",
+          errorSummary: `Adapter error: ${String(err?.message ?? err).slice(0, 500)}`,
+        });
+        agentRepo.update(agentId, {
+          lastRunAt: new Date().toISOString(),
+          lastRunStatus: "failed",
         });
       });
 

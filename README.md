@@ -100,6 +100,7 @@ Open `http://localhost:5173`.
 | `HERMES_CLI_PATH` | `hermes` | Path to hermes binary |
 | `HERMES_TIMEOUT_SECONDS` | `120` | Max seconds per agent turn |
 | `VAULT_PATH` | `~/.homeroom/vault` | Local Obsidian-compatible vault path |
+| `ALLOW_REMOTE_ORIGINS` | `false` | Set to `true` to allow non-localhost origins (preview hosts) |
 | `LOG_LEVEL` | `info` | Fastify log level |
 
 ---
@@ -117,6 +118,8 @@ Every agent gets a folder at `$VAULT_PATH/Agents/<name>/` with these files:
 - `RUNS.md` — last 20 runs summary
 
 Files are rewritten automatically when agent configuration changes. You can open `$VAULT_PATH` in Obsidian. The agent profile page shows sync status and lets you trigger a manual rebuild.
+
+The vault is a generated export, not a two-way sync. If you edit vault files manually, those changes are not read back into the backend. The sync status indicator compares the backend's current state hash to the last-written hash, but does not diff on-disk file contents.
 
 ---
 
@@ -143,6 +146,10 @@ Files are rewritten automatically when agent configuration changes. You can open
 
 ## Security
 
-API keys are never sent to agents or included in prompts. They are stored AES-256-GCM encrypted at `~/.homeroom/credentials.json.enc` and injected as environment variables when a hermes process starts. Keys are masked in all API responses.
+**Credential storage:** API keys are encrypted with AES-256-GCM and stored at `~/.homeroom/credentials.json.enc`. The encryption key is derived from the machine ID and a local salt. This protects against casual file inspection but not against a determined attacker with access to both the encrypted file and the machine ID. This is local privacy, not hardened secret management. Keys are never stored in the browser.
 
-The backend only accepts connections from localhost.
+**Network isolation:** The backend only accepts connections from localhost by default. No authentication layer exists. If you set `ALLOW_REMOTE_ORIGINS=true`, remote preview hosts can reach the backend, which means any page on those hosts can call credential and agent management endpoints. Do not enable this on shared networks.
+
+**Agent execution:** Keys are injected as environment variables when hermes starts. They are not included in prompts or agent output. Keys are masked in all API responses.
+
+**No auth:** There is no user authentication on the backend API. Anyone who can reach localhost:5174 can manage agents, trigger runs, and read/write credentials. This is acceptable for single-user local use. It is not acceptable for multi-user or network-exposed deployments.

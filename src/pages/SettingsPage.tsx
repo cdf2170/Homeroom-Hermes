@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Shield, Cpu, Cloud, Key, Eye, EyeOff, Trash2, Check, ExternalLink, Info, Plus, Loader2, RefreshCw } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
-import { useModelConfig, hasProviderKey, setProviderKey, removeProviderKey } from '@/store/modelConfigStore';
+import { useModelConfig, setProviderKey, removeProviderKey } from '@/store/modelConfigStore';
 import { PROVIDER_INFO } from '@/data/models';
 import { toast } from 'sonner';
 import { useConnectionStatus } from '@/lib/connection';
@@ -26,9 +26,7 @@ const ProviderCard: React.FC<{ providerId: string; info: typeof PROVIDER_INFO[st
   const saveCred = useSaveCredential();
   const deleteCred = useDeleteCredential();
 
-  // Also check localStorage as a fallback
-  const localConnected = hasProviderKey(providerId);
-  const connected = !!maskedKey || localConnected;
+  const connected = !!maskedKey;
 
   const handleOpenPortal = () => {
     window.open(info.keyUrl, `${providerId}-portal`, 'width=1100,height=720,menubar=no,toolbar=no,location=yes,status=no');
@@ -38,27 +36,24 @@ const ProviderCard: React.FC<{ providerId: string; info: typeof PROVIDER_INFO[st
     const key = value.trim();
     if (!key) return;
 
-    // Save to localStorage immediately for instant UI feedback
-    setProviderKey(providerId, key);
-
-    // Persist to backend
     try {
       await saveCred.mutateAsync({ provider: providerId, key });
+      setProviderKey(providerId, ''); // mark connected in UI cache (no raw key stored)
       toast.success(`${info.name} connected`);
       setExpanded(false);
       setValue('');
     } catch {
-      // toast already shown by mutation onError — local key still saved
+      // toast already shown by mutation onError
     }
   };
 
   const handleDisconnect = async () => {
-    removeProviderKey(providerId);
     try {
       await deleteCred.mutateAsync(providerId);
+      removeProviderKey(providerId);
       toast.success(`${info.name} disconnected`);
     } catch {
-      // silent — local key already removed
+      // toast already shown by mutation onError
     }
   };
 

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PROVIDER_INFO } from '@/data/models';
-import { hasProviderKey, setProviderKey, removeProviderKey } from '@/store/modelConfigStore';
+import { setProviderKey, removeProviderKey } from '@/store/modelConfigStore';
 import { useCredentials, useSaveCredential, useDeleteCredential } from '@/hooks/api/useAgents';
 
 // Map plugin IDs to PROVIDER_INFO keys
@@ -36,8 +36,7 @@ const AiProviderCard: React.FC<{
 
   if (!info) return null;
 
-  const localConnected = hasProviderKey(providerKey);
-  const connected = !!maskedKey || localConnected;
+  const connected = !!maskedKey;
 
   const handleOpenPortal = () => {
     window.open(info.keyUrl, `${pluginId}-portal`, 'width=1100,height=720,menubar=no,toolbar=no,location=yes,status=no');
@@ -46,9 +45,9 @@ const AiProviderCard: React.FC<{
   const handleSave = async () => {
     const key = value.trim();
     if (!key) return;
-    setProviderKey(providerKey, key);
     try {
       await saveCred.mutateAsync({ provider: providerKey, key });
+      setProviderKey(providerKey, ''); // mark connected (no raw key stored)
       toast.success(`${info.name} connected`);
       setExpanded(false);
       setValue('');
@@ -58,12 +57,12 @@ const AiProviderCard: React.FC<{
   };
 
   const handleDisconnect = async () => {
-    removeProviderKey(providerKey);
     try {
       await deleteCred.mutateAsync(providerKey);
+      removeProviderKey(providerKey);
       toast.success(`${info.name} disconnected`);
     } catch {
-      // silent
+      // onError toast already shown
     }
   };
 
@@ -356,7 +355,7 @@ const PluginsPage: React.FC = () => {
     if (plugin.id === 'ollama') return false; // local, no credential
     const providerKey = PLUGIN_PROVIDER_MAP[plugin.id];
     if (providerKey) {
-      return !!(credMap[providerKey] || hasProviderKey(providerKey));
+      return !!credMap[providerKey];
     }
     return false;
   };

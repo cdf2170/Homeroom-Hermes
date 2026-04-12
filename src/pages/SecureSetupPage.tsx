@@ -12,7 +12,8 @@ import {
   HardDrive, CloudOff, CheckCircle2, XCircle, Loader2, BadgeCheck, Fingerprint,
 } from 'lucide-react';
 import { PROVIDER_INFO, type ProviderInfo } from '@/data/models';
-import { setProviderKey, hasProviderKey, getProviderKey } from '@/store/modelConfigStore';
+import { setProviderKey, hasProviderKey } from '@/store/modelConfigStore';
+import { backendApi } from '@/services/backendApi';
 import { toast } from 'sonner';
 
 // ── Step definitions ──
@@ -103,8 +104,6 @@ const KeyEntryCard: React.FC<{
   const [saved, setSaved] = useState(hasProviderKey(providerId));
   const [verifyStatus, setVerifyStatus] = useState<VerifyStatus>('idle');
   const [verifyError, setVerifyError] = useState('');
-  const existing = getProviderKey(providerId);
-  const masked = existing ? existing.slice(0, 6) + '••••' + existing.slice(-4) : '';
 
   const prefixValid = !info.keyPrefix || value.startsWith(info.keyPrefix);
 
@@ -114,24 +113,19 @@ const KeyEntryCard: React.FC<{
     setVerifyError('');
 
     try {
-      const result = await simulateVerifyKey(providerId, value.trim());
-      if (result.ok) {
-        setVerifyStatus('verified');
-        setProviderKey(providerId, value.trim());
-        toast.success(`${info.name} key verified and saved securely`);
-        // Brief pause to show verified state
-        setTimeout(() => {
-          setSaved(true);
-          setValue('');
-          onSaved();
-        }, 600);
-      } else {
-        setVerifyStatus('failed');
-        setVerifyError('This key was rejected by the provider. Double-check that you copied the full key.');
-      }
+      // Save to backend encrypted store (validates key format server-side)
+      const result = await backendApi.setCredential(providerId, value.trim());
+      setVerifyStatus('verified');
+      setProviderKey(providerId, ''); // mark connected in UI cache (no raw key)
+      toast.success(`${info.name} key saved to encrypted storage`);
+      setTimeout(() => {
+        setSaved(true);
+        setValue('');
+        onSaved();
+      }, 600);
     } catch {
       setVerifyStatus('failed');
-      setVerifyError('Could not reach the provider to verify. Check your connection and try again.');
+      setVerifyError('Could not save the key. Check that the backend service is running.');
     }
   };
 

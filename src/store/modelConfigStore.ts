@@ -5,7 +5,21 @@ const STORAGE_KEY = 'homeroom-model-config';
 const FAVORITES_KEY = 'homeroom-favorite-models';
 const CUSTOM_MODELS_KEY = 'homeroom-custom-models';
 const AGENT_MODELS_KEY = 'homeroom-agent-models';
-const PROVIDER_KEYS_KEY = 'homeroom-provider-keys';
+
+/**
+ * SECURITY: Provider keys are NEVER stored in the browser.
+ * Keys go directly to the backend's encrypted credential store.
+ * We only track which providers the user has connected (boolean flags).
+ */
+const PROVIDER_CONNECTED_KEY = 'homeroom-provider-connected';
+
+// On load, wipe any legacy plaintext keys that the old code stored
+try {
+  const legacy = localStorage.getItem('homeroom-provider-keys');
+  if (legacy) {
+    localStorage.removeItem('homeroom-provider-keys');
+  }
+} catch {}
 
 function loadConfig(): ModelConfig {
   try {
@@ -39,9 +53,9 @@ function loadAgentModels(): Record<string, string> {
   return {};
 }
 
-function loadProviderKeys(): Record<string, string> {
+function loadProviderConnected(): Record<string, boolean> {
   try {
-    const stored = localStorage.getItem(PROVIDER_KEYS_KEY);
+    const stored = localStorage.getItem(PROVIDER_CONNECTED_KEY);
     if (stored) return JSON.parse(stored);
   } catch {}
   return {};
@@ -51,7 +65,7 @@ let config: ModelConfig = loadConfig();
 let favorites: string[] = loadFavorites();
 let customModels: { id: string; name: string; provider: string }[] = loadCustomModels();
 let agentModels: Record<string, string> = loadAgentModels();
-let providerKeys: Record<string, string> = loadProviderKeys();
+let providerConnected: Record<string, boolean> = loadProviderConnected();
 let listeners: Set<() => void> = new Set();
 
 function emit() {
@@ -129,27 +143,39 @@ export function removeCustomModel(id: string) {
   emit();
 }
 
-// Provider API keys
-export function getProviderKeys() { return providerKeys; }
+// Provider connection status (boolean flags only -- keys are backend-only)
 
-export function getProviderKey(provider: string): string | null {
-  return providerKeys[provider] || null;
+/** @deprecated Use useCredentials() hook for authoritative status. This is a UI cache. */
+export function getProviderKeys() { return providerConnected; }
+
+/**
+ * Raw keys are never stored in the browser. Always returns null.
+ * Use the backend credential endpoints to manage keys.
+ */
+export function getProviderKey(_provider: string): string | null {
+  return null;
 }
 
+/** Check if a provider has been connected (UI cache). Prefer useCredentials() for truth. */
 export function hasProviderKey(provider: string): boolean {
-  return !!providerKeys[provider]?.trim();
+  return !!providerConnected[provider];
 }
 
-export function setProviderKey(provider: string, key: string) {
-  providerKeys = { ...providerKeys, [provider]: key };
-  localStorage.setItem(PROVIDER_KEYS_KEY, JSON.stringify(providerKeys));
+/**
+ * Mark a provider as connected in the UI cache. Does NOT store the key.
+ * The actual key must be sent to the backend via useSaveCredential().
+ */
+export function setProviderKey(provider: string, _key: string) {
+  providerConnected = { ...providerConnected, [provider]: true };
+  localStorage.setItem(PROVIDER_CONNECTED_KEY, JSON.stringify(providerConnected));
   emit();
 }
 
+/** Mark a provider as disconnected in the UI cache. */
 export function removeProviderKey(provider: string) {
-  const { [provider]: _, ...rest } = providerKeys;
-  providerKeys = rest;
-  localStorage.setItem(PROVIDER_KEYS_KEY, JSON.stringify(providerKeys));
+  const { [provider]: _, ...rest } = providerConnected;
+  providerConnected = rest;
+  localStorage.setItem(PROVIDER_CONNECTED_KEY, JSON.stringify(providerConnected));
   emit();
 }
 
@@ -159,7 +185,7 @@ function subscribe(listener: () => void) {
 }
 
 function getSnapshot() {
-  return { config, favorites, customModels, agentModels, providerKeys };
+  return { config, favorites, customModels, agentModels, providerConnected };
 }
 
 let lastSnapshot = getSnapshot();
@@ -176,7 +202,7 @@ export function useModelStore() {
       next.favorites !== lastSnapshot.favorites ||
       next.customModels !== lastSnapshot.customModels ||
       next.agentModels !== lastSnapshot.agentModels ||
-      next.providerKeys !== lastSnapshot.providerKeys
+      next.providerConnected !== lastSnapshot.providerConnected
     ) {
       lastSnapshot = next;
     }
