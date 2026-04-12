@@ -18,7 +18,7 @@ const migrationsFolder = resolve(
 migrate(db, { migrationsFolder });
 
 const adapter = await buildAdapter(config);
-const { app } = await buildApp(db, adapter, config);
+const { app } = await buildApp(db, adapter, config, config.vaultPath);
 
 await app.listen({ port: config.port, host: config.host });
 console.log(`Homeroom service listening on http://${config.host}:${config.port}`);

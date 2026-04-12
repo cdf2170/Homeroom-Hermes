@@ -1,4 +1,5 @@
 import { resolve } from "path";
+import { homedir } from "os";
 
 export interface Config {
   port: number;
@@ -18,6 +19,8 @@ export interface Config {
   /** Cloud model. Defaults to gpt-4o */
   cloudModel: string;
   logLevel: string;
+  /** Path to the local Obsidian-compatible vault. Defaults to ~/.homeroom/vault */
+  vaultPath: string;
 }
 
 export function loadConfig(): Config {
@@ -33,5 +36,6 @@ export function loadConfig(): Config {
     cloudProvider:        process.env["CLOUD_PROVIDER"] ?? "openai",
     cloudModel:           process.env["CLOUD_MODEL"] ?? "gpt-4o",
     logLevel:             process.env["LOG_LEVEL"] ?? "info",
+    vaultPath:            process.env["VAULT_PATH"] ?? resolve(homedir(), ".homeroom", "vault"),
   };
 }

@@ -349,6 +349,26 @@ export const backendApi = {
     return mapSettings(raw);
   },
 
+  /** Get vault sync status for all agents. */
+  async getVaultStatus(): Promise<{ vaultRoot: string; agents: Record<string, { synced: boolean; syncedAt: string | null; hash: string | null }> }> {
+    return get('/api/vault/status');
+  },
+
+  /** Get vault sync status for a single agent, including drift detection. */
+  async getAgentVaultStatus(id: string): Promise<{ synced: boolean; syncedAt: string | null; hash: string | null; inSync: boolean; liveHash: string; vaultRoot: string }> {
+    return get(`/api/vault/status/${id}`);
+  },
+
+  /** Rebuild vault docs for all agents. */
+  async rebuildVault(): Promise<{ rebuilt: number }> {
+    return post('/api/vault/rebuild');
+  },
+
+  /** Rebuild vault docs for a single agent. */
+  async rebuildAgentVault(id: string): Promise<{ rebuilt: boolean; agentId: string }> {
+    return post(`/api/vault/rebuild/${id}`);
+  },
+
   /** Fetch trust findings across all agents. */
   async listTrustFindings(): Promise<{ id: string; agentId: string; level: string; code: string; title: string; detail: string; resolvedAt: string | null }[]> {
     const raw = await get<{ findings: { id: string; agentId: string; level: string; code: string; title: string; detail: string; resolvedAt: string | null }[] }>('/api/trust/findings');

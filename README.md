@@ -1,121 +1,145 @@
-# Homeroom
+# Homeroom-Hermes
 
-A visual workspace for building and running AI agents. You design a cast of characters — each with a role, personality, model, and set of permissions — and Homeroom gives them a place to live and work.
-
-The core idea is that agent orchestration is much easier to reason about when you can see it: teammates in rooms, tasks in progress, approvals waiting, activity logged. Instead of editing YAML and grepping through logs, you configure agents the way you'd set up coworkers, and watch them operate.
+A local control plane for running AI agents. Homeroom is the visual layer that sits on top of [hermes-agent](https://github.com/NousResearch/hermes-agent) by NousResearch. Each agent you configure in Homeroom runs as a real hermes-agent process on your machine.
 
 ---
 
-## What it looks like
+## What it is
 
-The interface is an office. Agents occupy rooms — a work area, a lounge, a server room, a quiet corner. Each agent has a name, a role, a model, and a disposition. You can see who is working, who is idle, and who needs your attention. Clicking an agent opens their inspector, where you can edit everything about them, run them manually, read their audit trail, and tune their behavior.
+Homeroom is not an AI framework. It is a management interface. The actual execution happens in hermes-agent. Homeroom handles:
 
-It is not a chat interface. You are the manager, not the user.
-
----
-
-## What agents can actually do
-
-Agents are backed by [Hermes](https://github.com/NousResearch/hermes), a CLI agent that supports tool use, memory, skills, and multi-turn sessions. When you run an agent, Homeroom calls:
-
-```
-hermes chat -q "<your input>" --quiet -m <your chosen model>
-```
-
-Your API keys are injected as environment variables at run time. Keys are encrypted at rest using AES-256-GCM and never leave your machine.
-
-Supported runtimes:
-- **Hermes** — default, requires the `hermes` CLI on PATH
-- **Ollama** — fully local, no API keys needed
-- **Cloud** — direct OpenAI / Anthropic / Google calls without Hermes
-- **Mock** — simulates runs without real execution, useful for UI development
+- Creating and configuring agents (name, role, purpose, instructions, model)
+- Triggering runs and collecting output
+- Persisting run history, audit trails, trust findings, and settings
+- Scheduling background execution
+- A local Obsidian-compatible vault that mirrors agent configuration as markdown
 
 ---
 
-## The character layer
+## How it works
 
-Every agent has:
+```
+Browser UI (React + Vite)
+      |
+      | HTTP (localhost:5174)
+      v
+Homeroom Service (Fastify + SQLite)
+      |
+      | spawns process
+      v
+hermes-agent CLI
+      |
+      | API key (env var)
+      v
+AI provider (Anthropic, OpenAI, OpenRouter, etc.)
+```
 
-- **Role** — what they are responsible for (e.g. "monitors email and writes daily digests")
-- **Personality** — tone and communication style, fed into their system prompt
-- **Model** — the specific model they run on (e.g. `anthropic/claude-3.5-sonnet`)
-- **Smartness level** — quick, balanced, or deep; affects which model tier is suggested
-- **Runtime mode** — local, cloud, or hybrid
-- **Permissions** — which tools they can use, whether they need approval before acting, whether they run in the background
-- **Schedule** — when they run automatically
-- **Memory** — pinned facts they carry across runs
-- **Rules** — constraints enforced before every run
-- **Room** — where they sit in the office
-- **Appearance** — cosmetic, but it makes people care more about them
+When you click Run in the UI, the service calls:
 
-None of this is decoration. Personality shapes the system prompt, permissions shape what Hermes is allowed to do, model selection shapes cost and capability. The visual layer makes those decisions feel legible and owned.
+```sh
+hermes chat -q "<your input>" --quiet
+```
+
+With `-m <model>` appended if you have selected a specific model for the agent. API keys are injected as environment variables. They are stored AES-256-GCM encrypted at `~/.homeroom/credentials.json.enc`.
 
 ---
 
-## Stack
+## Requirements
 
-```
-src/                  React + Tailwind frontend (Vite)
-apps/service/         Fastify + SQLite backend (port 5174)
-packages/
-  adapter-core/       RuntimeAdapter interface
-  adapter-hermes/     Hermes CLI wrapper + MockAdapter
-  adapter-ollama/     Ollama adapter
-  adapter-cloud/      Direct cloud provider adapter
-  contracts/          Zod schemas for all API requests and views
-  domain/             Core domain types (AgentProfile, etc.)
-  schemas/            Shared enums and primitives
+- Node.js 18 or later (or Bun)
+- [hermes-agent](https://github.com/NousResearch/hermes-agent) installed and on your PATH
+- At least one configured AI provider API key
+
+Install hermes-agent:
+
+```sh
+npm install -g @nousresearch/hermes-agent
 ```
 
-The frontend talks exclusively to the local service. The service talks to whichever adapter is configured. Nothing phones home.
+Verify installation:
+
+```sh
+hermes --version
+```
 
 ---
 
 ## Getting started
 
-**Prerequisites:**
-- Node.js 20+ and pnpm
-- The `hermes` CLI installed and on PATH (run `hermes doctor` to verify)
-- An API key for at least one provider (Anthropic, OpenAI, Google, or OpenRouter)
+```sh
+# Clone
+git clone https://github.com/cdf2170/Homeroom-Hermes.git
+cd Homeroom-Hermes
 
-**Run:**
+# Install dependencies
+npm install
 
-```bash
-pnpm install
-pnpm start
+# Start the backend service
+cd apps/service
+npm run dev
+
+# In another terminal, start the frontend
+cd ../..
+npm run dev
 ```
 
-This starts the backend service on port 5174 and the frontend on port 5173.
+Open `http://localhost:5173`.
 
-**First time:**
-1. Open Settings and connect an AI provider under Providers
-2. Go to Agents and create your first agent
-3. Describe what you want them to do — the UI will suggest a name, model, and smartness level
-4. Open the agent, pick their model, set their permissions
-5. Hit Run Now
+---
 
-**Environment variables:**
+## Environment variables
 
 | Variable | Default | Description |
-|---|---|---|
-| `ADAPTER` | `hermes` | Runtime: `hermes`, `ollama`, `cloud`, `mock` |
-| `HERMES_CLI_PATH` | `hermes` | Path to the hermes binary |
+|----------|---------|-------------|
+| `PORT` | `5174` | Backend service port |
+| `DB_PATH` | `homeroom.db` | SQLite database path |
+| `ADAPTER` | `hermes` | Runtime adapter: `hermes`, `mock`, `ollama`, `cloud` |
+| `HERMES_CLI_PATH` | `hermes` | Path to hermes binary |
 | `HERMES_TIMEOUT_SECONDS` | `120` | Max seconds per agent turn |
-| `DB_PATH` | `./homeroom.db` | SQLite database path |
-| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API base URL |
-| `OLLAMA_MODEL` | `nous-hermes2` | Default Ollama model |
-| `PORT` | `5174` | Service port |
+| `VAULT_PATH` | `~/.homeroom/vault` | Local Obsidian-compatible vault path |
+| `LOG_LEVEL` | `info` | Fastify log level |
 
 ---
 
-## Status
+## Local docs vault
 
-The UI is complete and wired to the backend. Agent creation, editing, model selection, runs, audit trail, trust findings, and credential management all work end to end. Schedules are stored but not yet firing. Permission enforcement — passing tool restrictions to Hermes — is the next significant piece.
+Every agent gets a folder at `$VAULT_PATH/Agents/<name>/` with these files:
 
-This is early software. The goal is a stable, forkable base: clone it, run it locally, build from it. Not a hosted service.
+- `AGENT.md` — identity, role, runtime settings
+- `PROFILE.md` — instructions, behavior, notes
+- `MEMORY.md` — memory items
+- `RULES.md` — rules
+- `SCHEDULE.md` — schedule configuration
+- `TOOLS.md` — tool scopes and permissions
+- `RUNS.md` — last 20 runs summary
+
+Files are rewritten automatically when agent configuration changes. You can open `$VAULT_PATH` in Obsidian. The agent profile page shows sync status and lets you trigger a manual rebuild.
 
 ---
 
-## License
+## What works now
 
-MIT
+- Create, edit, and delete agents — persisted in SQLite
+- Run agents manually through the UI — calls hermes-agent, captures output
+- Model selection per agent — passes `-m <model>` to hermes
+- Provider API keys — stored encrypted locally, injected into hermes at runtime
+- Run history — stored in DB, shown in Activity page
+- Trust findings — computed from agent configuration, shown in Trust page
+- Audit log — every create/update/delete/run recorded
+- Settings — persisted in DB
+- Local vault — markdown mirror of agent state, auto-updated on changes
+
+## What is not yet implemented
+
+- Approvals — the approvals UI exists but there is no backend route; runs do not block on approval
+- Real scheduling — the schedule UI saves cron expressions to the DB but nothing executes them on a timer yet
+- SSE push — run status updates use polling (2s interval); real-time push is not wired
+- Ollama and cloud adapters — hermes is the only tested execution path
+
+---
+
+## Security
+
+API keys are never sent to agents or included in prompts. They are stored AES-256-GCM encrypted at `~/.homeroom/credentials.json.enc` and injected as environment variables when a hermes process starts. Keys are masked in all API responses.
+
+The backend only accepts connections from localhost.

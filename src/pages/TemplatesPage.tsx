@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
-import { addAgent, useAgents } from '@/store/agentStore';
-import { Sparkles, ArrowRight, Check, Search, Calendar, ClipboardList, MessageSquare, Settings, Target, CheckCircle2 } from 'lucide-react';
-import { AgentTemplate, Agent } from '@/types/agent';
+import { useAgents, useCreateAgent } from '@/hooks/api/useAgents';
+import { backendApi } from '@/services/backendApi';
+import { Sparkles, ArrowRight, Check, Search, Calendar, ClipboardList, MessageSquare, Settings, Target, CheckCircle2, Loader2 } from 'lucide-react';
+import { AgentTemplate } from '@/types/agent';
 import { toast } from 'sonner';
 
 const TEMPLATE_ICONS: Record<string, React.ElementType> = {
@@ -24,8 +25,9 @@ const TEMPLATE_ICONS: Record<string, React.ElementType> = {
 const StarterCard: React.FC<{
   starter: StarterAgent;
   isActive: boolean;
+  isLoading: boolean;
   onActivate: () => void;
-}> = ({ starter, isActive, onActivate }) => {
+}> = ({ starter, isActive, isLoading, onActivate }) => {
   const Icon = starter.icon;
 
   return (
@@ -70,8 +72,9 @@ const StarterCard: React.FC<{
           <CheckCircle2 className="w-3.5 h-3.5" /> Already in your office
         </Button>
       ) : (
-        <Button size="sm" className="w-full text-xs" onClick={onActivate}>
-          <Icon className="w-3.5 h-3.5" /> Activate {starter.name}
+        <Button size="sm" className="w-full text-xs" onClick={onActivate} disabled={isLoading}>
+          {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
+          {isLoading ? 'Adding...' : `Activate ${starter.name}`}
         </Button>
       )}
     </div>
@@ -82,25 +85,37 @@ const StarterCard: React.FC<{
 
 const TemplatesPage: React.FC = () => {
   const navigate = useNavigate();
-  const agents = useAgents();
+  const { data: agents = [] } = useAgents();
+  const createAgent = useCreateAgent();
   const [selected, setSelected] = useState<string | null>(null);
+  const [activating, setActivating] = useState<string | null>(null);
 
   const agentNames = new Set(agents.map(a => a.name.toLowerCase()));
 
-  const handleActivateStarter = (starter: StarterAgent) => {
-    const newId = `starter-${starter.name.toLowerCase()}-${Date.now()}`;
-    const newAgent: Agent = {
-      id: newId,
-      ...starter.agentConfig,
-      permissions: {
-        ...starter.agentConfig.permissions,
-        id: `perm-${newId}`,
-        agentId: newId,
-      },
-    };
-    addAgent(newAgent);
-    toast.success(`${starter.name} has joined your office.`);
-    navigate(`/agents/${newId}`);
+  const handleActivateStarter = async (starter: StarterAgent) => {
+    if (activating) return;
+    setActivating(starter.id);
+    try {
+      const created = await createAgent.mutateAsync({
+        name: starter.name,
+        purpose: starter.agentConfig.purpose,
+        smartnessLevel: starter.agentConfig.smartnessLevel,
+        runtimeMode: starter.agentConfig.runtimeMode,
+      });
+      // Patch additional profile fields
+      await backendApi.updateAgent(created.id, {
+        role: starter.agentConfig.role,
+        instructions: starter.agentConfig.personality ?? '',
+        archetype: starter.agentConfig.archetype,
+        vibe: starter.agentConfig.vibe,
+      });
+      toast.success(`${starter.name} has joined your office.`);
+      navigate(`/agents/${created.id}`);
+    } catch {
+      // error toast shown by mutation
+    } finally {
+      setActivating(null);
+    }
   };
 
   const handleSelect = (template: AgentTemplate) => {
@@ -145,6 +160,7 @@ const TemplatesPage: React.FC = () => {
               key={starter.id}
               starter={starter}
               isActive={agentNames.has(starter.name.toLowerCase())}
+              isLoading={activating === starter.id}
               onActivate={() => handleActivateStarter(starter)}
             />
           ))}

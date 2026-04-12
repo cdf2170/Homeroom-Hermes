@@ -1,24 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAgents, updateAgent } from '@/store/agentStore';
+import { useAgent } from '@/hooks/api/useAgents';
+import { backendApi } from '@/services/backendApi';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import AvatarPreview from '@/components/AvatarPreview';
 import {
   PartyPopper, Play, ArrowRight, Brain, Shield, Clock,
-  Sparkles, CheckCircle2, Rocket,
+  Sparkles, CheckCircle2, Rocket, AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import type { BackendRun } from '@/services/backendApi';
 
 type Phase = 'celebrate' | 'first-task' | 'running' | 'result' | 'next-steps';
 
 const AgentWelcomePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const agents = useAgents();
-  const agent = agents.find(a => a.id === id);
+  const { data: agent, isLoading } = useAgent(id ?? '');
   const [phase, setPhase] = useState<Phase>('celebrate');
   const [taskInput, setTaskInput] = useState('');
+  const [runResult, setRunResult] = useState<BackendRun | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [pollInterval, setPollInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up poller on unmount
+  useEffect(() => () => { if (pollInterval) clearInterval(pollInterval); }, [pollInterval]);
+
+  if (isLoading) return null;
 
   if (!agent) {
     navigate('/agents');
@@ -31,40 +40,37 @@ const AgentWelcomePage: React.FC = () => {
     `Show me an example of your best work`,
   ];
 
-  const handleRunTask = (task: string) => {
-    updateAgent(agent.id, {
-      currentTask: task,
-      state: 'working',
-      zone: 'work',
-      lastRunAt: new Date(),
-      lastRunStatus: 'running',
-      activities: [
-        { id: `act-${Date.now()}`, timestamp: new Date(), action: 'First Task', detail: task },
-        ...agent.activities,
-      ],
-      runs: [
-        {
-          id: `run-${Date.now()}`, agentId: agent.id, trigger: 'manual',
-          status: 'running', startedAt: new Date(), finishedAt: null,
-          inputSummary: task, outputSummary: null, errorSummary: null, backendRef: null,
-        },
-        ...agent.runs,
-      ],
-    });
+  const handleRunTask = async (task: string) => {
     setPhase('running');
+    setRunError(null);
+    setRunResult(null);
 
-    // Simulate completion
-    setTimeout(() => {
-      updateAgent(agent.id, {
-        state: 'idle',
-        currentTask: null,
-        lastRunStatus: 'completed',
-        runs: agent.runs.length > 0
-          ? [{ ...agent.runs[0], status: 'completed', finishedAt: new Date(), outputSummary: `Completed: ${task}` }, ...agent.runs.slice(1)]
-          : [],
-      });
+    let run: BackendRun;
+    try {
+      run = await backendApi.runAgent(agent.id, task);
+    } catch (e: any) {
+      setRunError(e.message ?? 'Run failed');
       setPhase('result');
-    }, 2500);
+      return;
+    }
+
+    // Poll until the run settles
+    const interval = setInterval(async () => {
+      try {
+        const runs = await backendApi.listRuns(agent.id);
+        const current = runs.find(r => r.id === run.id);
+        if (!current) return;
+        if (current.status === 'completed' || current.status === 'failed' || current.status === 'cancelled') {
+          clearInterval(interval);
+          setPollInterval(null);
+          setRunResult(current);
+          setPhase('result');
+        }
+      } catch {
+        // backend momentarily unreachable — keep polling
+      }
+    }, 1500);
+    setPollInterval(interval);
   };
 
   return (
@@ -155,7 +161,7 @@ const AgentWelcomePage: React.FC = () => {
             <AvatarPreview appearance={agent.appearance} name={agent.name} size={96} className="mx-auto" />
             <div>
               <h2 className="font-display font-bold text-xl text-foreground">{agent.name} is working...</h2>
-              <p className="text-sm text-muted-foreground mt-1">This usually takes a few moments</p>
+              <p className="text-sm text-muted-foreground mt-1">Waiting for the run to complete</p>
             </div>
             <div className="flex items-center justify-center gap-1.5">
               {[0, 1, 2].map(i => (
@@ -172,16 +178,29 @@ const AgentWelcomePage: React.FC = () => {
         {phase === 'result' && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-status-working/10 flex items-center justify-center mx-auto mb-3">
-                <CheckCircle2 className="w-6 h-6 text-status-working" />
-              </div>
-              <h2 className="font-display font-bold text-xl text-foreground">First task complete!</h2>
+              {runError || runResult?.status === 'failed' ? (
+                <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-3">
+                  <AlertTriangle className="w-6 h-6 text-destructive" />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-status-working/10 flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle2 className="w-6 h-6 text-status-working" />
+                </div>
+              )}
+              <h2 className="font-display font-bold text-xl text-foreground">
+                {runError || runResult?.status === 'failed' ? 'Run failed' : 'First task complete!'}
+              </h2>
               <p className="text-sm text-muted-foreground mt-1">{agent.name} finished their first run</p>
             </div>
             <div className="p-4 bg-card border border-border rounded-xl">
-              <p className="text-xs font-semibold text-muted-foreground mb-1">Result</p>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">
+                {runError || runResult?.status === 'failed' ? 'Error' : 'Result'}
+              </p>
               <p className="text-sm text-foreground">
-                {agent.runs[0]?.outputSummary || 'Task completed successfully'}
+                {runError
+                  ?? runResult?.errorSummary
+                  ?? runResult?.outputSummary
+                  ?? 'No output recorded'}
               </p>
             </div>
             <Button className="w-full" onClick={() => setPhase('next-steps')}>

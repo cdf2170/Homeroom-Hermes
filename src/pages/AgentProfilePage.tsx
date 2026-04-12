@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AvatarPreview from '@/components/AvatarPreview';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAgents, updateAgent, removeAgent } from '@/store/agentStore';
-import { useAgent, useAgentRuns, useRunAgent, useUpdateAgent, useDeleteAgent } from '@/hooks/api/useAgents';
+import { useAgent, useAgentRuns, useRunAgent, useUpdateAgent, useDeleteAgent, useAgentVaultStatus, useRebuildAgentVault } from '@/hooks/api/useAgents';
 import {
   ArrowLeft, User, FileText, Shield, Clock,
   Play, Pause, Trash2, Cpu, Cloud, Zap,
@@ -1016,11 +1016,85 @@ const TrailSection = ({ agent, runs = [] }: { agent: Agent; runs?: MappedRun[] }
 // WORKSPACE — files & Obsidian
 // ═══════════════════════════════
 
+const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
+  const { data: status, isLoading } = useAgentVaultStatus(agentId);
+  const rebuild = useRebuildAgentVault(agentId);
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <div className="flex items-center gap-2">
+          <BookMarked className="w-4 h-4 text-muted-foreground animate-pulse" />
+          <p className="text-xs text-muted-foreground">Loading vault status...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!status) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <BookMarked className="w-4 h-4 text-muted-foreground" />
+          <p className="text-xs font-semibold text-foreground">Docs vault</p>
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground ml-auto">Backend offline</span>
+        </div>
+        <p className="text-[11px] text-muted-foreground">Connect to the backend service to use the vault.</p>
+      </div>
+    );
+  }
+
+  const syncLabel = status.inSync ? 'In sync' : 'Stale';
+  const syncColor = status.inSync ? 'bg-status-working/10 text-status-working' : 'bg-status-waiting/10 text-status-waiting';
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <BookMarked className="w-4 h-4 text-primary" />
+        <p className="text-xs font-semibold text-foreground">Docs vault</p>
+        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-auto ${syncColor}`}>{syncLabel}</span>
+      </div>
+
+      <p className="text-xs font-mono text-muted-foreground bg-muted px-3 py-2 rounded-lg break-all">
+        {status.vaultRoot}/Agents/
+      </p>
+
+      <div className="text-[10px] text-muted-foreground space-y-1">
+        <div className="flex gap-2">
+          <span className="text-muted-foreground/60 w-20 shrink-0">Last synced</span>
+          <span>{status.syncedAt ? new Date(status.syncedAt).toLocaleString() : 'Never'}</span>
+        </div>
+        {!status.inSync && (
+          <div className="flex items-start gap-2 mt-1 px-2 py-1.5 bg-status-waiting/5 border border-status-waiting/20 rounded-lg">
+            <AlertTriangle className="w-3 h-3 text-status-waiting shrink-0 mt-0.5" />
+            <span className="text-[10px] text-status-waiting">Docs are out of sync with backend state. Rebuild to update.</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 text-xs h-8"
+          onClick={() => rebuild.mutate()}
+          disabled={rebuild.isPending}
+        >
+          <RefreshCw className={`w-3 h-3 ${rebuild.isPending ? 'animate-spin' : ''}`} />
+          {rebuild.isPending ? 'Rebuilding...' : 'Rebuild docs'}
+        </Button>
+      </div>
+
+      <div className="text-[10px] text-muted-foreground">
+        Files: AGENT.md, PROFILE.md, MEMORY.md, RULES.md, SCHEDULE.md, TOOLS.md, RUNS.md
+      </div>
+    </div>
+  );
+};
+
 const WorkspaceSection = ({ agent }: { agent: Agent }) => {
   const [editingPath, setEditingPath] = useState(false);
   const [pathDraft, setPathDraft] = useState(agent.workspacePath ?? '');
-  const [editingVault, setEditingVault] = useState(false);
-  const [vaultDraft, setVaultDraft] = useState(agent.obsidianVaultPath ?? '');
 
   const workspaceFiles = ['AGENTS.md', 'USER.md', 'TOOLS.md', 'MEMORY.md'];
 
@@ -1085,47 +1159,8 @@ const WorkspaceSection = ({ agent }: { agent: Agent }) => {
             </div>
           </div>
 
-          {/* Obsidian vault */}
-          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <BookMarked className="w-4 h-4 text-primary" />
-              <p className="text-xs font-semibold text-foreground">Obsidian vault</p>
-              {agent.obsidianVaultPath && (
-                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-status-working/10 text-status-working ml-auto">Connected</span>
-              )}
-            </div>
-
-            {agent.obsidianVaultPath ? (
-              <>
-                <p className="text-xs font-mono text-muted-foreground bg-muted px-3 py-2 rounded-lg">{agent.obsidianVaultPath}</p>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1 text-xs h-8" onClick={() => toast.success('Opening in Obsidian…')}>
-                    <BookMarked className="w-3 h-3" /> Open in Obsidian
-                  </Button>
-                  <Button size="sm" variant="ghost" className="text-xs h-8 text-muted-foreground" onClick={() => { updateAgent(agent.id, { obsidianVaultPath: null }); toast.success('Vault unlinked'); }}>
-                    Unlink
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-[11px] text-muted-foreground">Link an Obsidian vault to edit this agent's docs with your normal notes workflow.</p>
-                {editingVault ? (
-                  <div className="space-y-2">
-                    <Input value={vaultDraft} onChange={e => setVaultDraft(e.target.value)} placeholder="~/Documents/MyVault" className="text-xs font-mono" autoFocus />
-                    <div className="flex gap-2">
-                      <Button size="sm" className="h-7 text-xs" onClick={() => { updateAgent(agent.id, { obsidianVaultPath: vaultDraft }); setEditingVault(false); toast.success('Vault linked'); }}>Link vault</Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingVault(false)}>Cancel</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => setEditingVault(true)}>
-                    <BookMarked className="w-3 h-3" /> Link Obsidian vault
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Vault status */}
+          <VaultStatusPanel agentId={agent.id} />
 
           {/* OpenClaw note */}
           <div className="flex items-start gap-2 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">

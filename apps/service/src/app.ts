@@ -27,6 +27,7 @@ import { createScheduleService } from "./services/schedule-service.js";
 import { createRunService } from "./services/run-service.js";
 import { createAgentService } from "./services/agent-service.js";
 import { createFrontdeskService } from "./services/frontdesk-service.js";
+import { createVaultService } from "./services/vault-service.js";
 
 // Routes
 import { buildRuntimeRoutes } from "./routes/runtime.js";
@@ -37,8 +38,12 @@ import { buildAuditRoutes } from "./routes/audit.js";
 import { buildFrontdeskRoutes } from "./routes/frontdesk.js";
 import { buildEventsRoutes } from "./routes/events.js";
 import { buildCredentialsRoutes } from "./routes/credentials.js";
+import { buildVaultRoutes } from "./routes/vault.js";
 
-export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config) {
+import { resolve } from "path";
+import { homedir } from "os";
+
+export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, vaultRoot?: string) {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -85,6 +90,8 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config) 
   const settingsService = createSettingsService(settingsRepo);
   const scheduleService = createScheduleService(scheduleRepo, agentRepo);
   const runService = createRunService(runRepo, agentRepo, runtimeProjectionRepo, adapter, auditService);
+  const resolvedVaultRoot = vaultRoot ?? resolve(homedir(), ".homeroom", "vault");
+  const vaultService = createVaultService(resolvedVaultRoot);
   const agentService = createAgentService(
     agentRepo,
     memoryRepo,
@@ -95,6 +102,7 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config) 
     trustService,
     auditService,
     adapter,
+    vaultService,
   );
   const frontdeskService = createFrontdeskService(agentRepo, trustService, runtimeService);
 
@@ -136,9 +144,10 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config) 
   await app.register(buildFrontdeskRoutes(frontdeskService));
   await app.register(buildEventsRoutes());
   await app.register(buildCredentialsRoutes());
+  await app.register(buildVaultRoutes(vaultService, agentService, memoryRepo, ruleRepo, permissionRepo, scheduleRepo, runRepo));
 
   // Seed mock agents on first boot
   await agentService.importFromAdapter();
 
-  return { app, agentService, runtimeService };
+  return { app, agentService, runtimeService, vaultService };
 }

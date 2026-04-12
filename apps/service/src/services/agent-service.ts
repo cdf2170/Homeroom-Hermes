@@ -9,6 +9,7 @@ import type { AuditService } from "./audit-service.js";
 import type { RuntimeAdapter } from "@homeroom/adapter-core";
 import type { CreateAgentRequest, UpdateAgentRequest } from "@homeroom/contracts";
 import type { AgentProfile } from "@homeroom/domain";
+import type { VaultService } from "./vault-service.js";
 import { now } from "../lib/time.js";
 
 export function createAgentService(
@@ -21,7 +22,22 @@ export function createAgentService(
   trustService: TrustService,
   auditService: AuditService,
   adapter: RuntimeAdapter,
+  vaultService?: VaultService,
 ) {
+  function syncVault(agentId: string) {
+    if (!vaultService) return;
+    try {
+      const profile = agentRepo.findById(agentId);
+      const memoryItems = memoryRepo.findByAgentId(agentId);
+      const ruleItems   = ruleRepo.findByAgentId(agentId);
+      const perm        = permissionRepo.findByAgentId(agentId);
+      const schedule    = scheduleRepo.findByAgentId(agentId);
+      vaultService.syncAgent(profile, memoryItems as any, ruleItems as any, perm as any, schedule as any);
+    } catch {
+      // vault sync is best-effort — never block the main path
+    }
+  }
+
   async function runTrustChecks(agentId: string) {
     const profile = agentRepo.findById(agentId);
     const permission = permissionRepo.findByAgentId(agentId);
@@ -97,6 +113,7 @@ export function createAgentService(
       });
 
       await runTrustChecks(profile.id);
+      syncVault(profile.id);
       return profile;
     },
 
@@ -130,6 +147,7 @@ export function createAgentService(
       });
 
       await runTrustChecks(id);
+      syncVault(id);
       return updated;
     },
 
@@ -142,7 +160,9 @@ export function createAgentService(
       scheduleRepo.deleteByAgentId(id);
       runtimeProjectionRepo.deleteByAgentId(id);
 
+      const profileName = profile.name;
       agentRepo.delete(id);
+      vaultService?.deleteAgent(id, profileName);
 
       auditService.append({
         actor: "user",

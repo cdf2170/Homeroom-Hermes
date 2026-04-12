@@ -172,6 +172,29 @@ export function useTrustFindings() {
   });
 }
 
+/** Vault sync status for a single agent (includes drift detection). */
+export function useAgentVaultStatus(agentId: string) {
+  return useQuery({
+    queryKey: ['vault', 'agent', agentId],
+    queryFn: () => backendApi.getAgentVaultStatus(agentId),
+    staleTime: 15_000,
+    retry: 1,
+    enabled: !!agentId,
+  });
+}
+
+/** Trigger vault rebuild for a single agent. */
+export function useRebuildAgentVault(agentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => backendApi.rebuildAgentVault(agentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['vault', 'agent', agentId] });
+    },
+    onError: (e: Error) => toast.error(`Vault rebuild failed: ${e.message}`),
+  });
+}
+
 /** Stored credentials — returns list of connected providers with masked keys. */
 export function useCredentials() {
   return useQuery({

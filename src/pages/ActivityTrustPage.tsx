@@ -1,17 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { useAgents as useAgentsStore } from '@/store/agentStore';
-import { useAgents as useAgentsQuery, useAllRuns, useTrustFindings } from '@/hooks/api/useAgents';
+import { useAgents as useAgentsQuery, useAllRuns, useTrustFindings, useCredentials } from '@/hooks/api/useAgents';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import StateCoverage from '@/components/StateCoverage';
-import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
-import { hasProviderKey } from '@/store/modelConfigStore';
-import { Agent } from '@/types/agent';
 import {
   Search, Activity, AlertTriangle, CheckCircle2, Clock,
-  Filter, Zap, Loader2, Shield, ShieldCheck, ShieldAlert,
-  Cpu, Cloud, Eye, Lock, ArrowRight, Key, Globe, Wrench,
+  Filter, Loader2, Shield, ShieldCheck, ShieldAlert,
+  Cpu, Cloud, Eye, Lock, ArrowRight, Key,
   RefreshCw, Calendar,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -41,7 +37,7 @@ const runStatusStyle: Record<string, { bg: string; text: string; label: string; 
   cancelled: { bg: 'bg-muted', text: 'text-muted-foreground', label: 'Cancelled', icon: Clock },
 };
 
-// ── Risk analysis ──
+// ── Finding type (mirrors backend shape) ──
 interface Finding {
   id: string;
   level: 'ok' | 'info' | 'warning' | 'risk';
@@ -51,86 +47,14 @@ interface Finding {
   agentName?: string;
 }
 
-function analyzeRisks(agents: Agent[]): Finding[] {
-  const findings: Finding[] = [];
-
-  const cloudAgents = agents.filter(a => a.runtimeMode === 'cloud' || a.runtimeMode === 'hybrid');
-  const bgAgents = agents.filter(a => a.backgroundEnabled);
-
-  if (cloudAgents.length > 0) {
-    findings.push({
-      id: 'cloud-agents', level: 'info',
-      title: `${cloudAgents.length} agent${cloudAgents.length > 1 ? 's' : ''} use cloud models`,
-      detail: 'These agents send data to external AI providers. Make sure you trust the provider.',
-    });
-  }
-  if (bgAgents.length > 0) {
-    findings.push({
-      id: 'bg-agents', level: 'info',
-      title: `${bgAgents.length} agent${bgAgents.length > 1 ? 's' : ''} can run in the background`,
-      detail: 'Background agents can work without you watching. Review their schedules and permissions.',
-    });
-  }
-
-  agents.forEach(a => {
-    if (!a.permissions && a.enabled) {
-      findings.push({
-        id: `no-perms-${a.id}`, level: 'warning', agentId: a.id, agentName: a.name,
-        title: `${a.name} has no guardrails set`,
-        detail: 'This agent has no explicit permission boundaries. Consider adding rules and tool limits.',
-      });
-    }
-    if (a.permissions?.networkAccess && a.runtimeMode === 'local') {
-      findings.push({
-        id: `net-local-${a.id}`, level: 'info', agentId: a.id, agentName: a.name,
-        title: `${a.name} has internet access but runs locally`,
-        detail: 'It can still reach external services even though the model runs on your device.',
-      });
-    }
-    if (a.permissions?.toolScopes && a.permissions.toolScopes.length > 5) {
-      findings.push({
-        id: `broad-tools-${a.id}`, level: 'warning', agentId: a.id, agentName: a.name,
-        title: `${a.name} has broad tool access (${a.permissions.toolScopes.length} tools)`,
-        detail: 'Consider limiting to only the tools this agent actually needs.',
-      });
-    }
-    if (a.backgroundEnabled && (!a.permissions || a.permissions.requiresApprovalFor.length === 0)) {
-      findings.push({
-        id: `bg-no-approval-${a.id}`, level: 'warning', agentId: a.id, agentName: a.name,
-        title: `${a.name} runs in background with no approval requirements`,
-        detail: 'Background agents without approval gates can act fully autonomously.',
-      });
-    }
-    if (a.ruleItems.length === 0 && a.enabled) {
-      findings.push({
-        id: `no-rules-${a.id}`, level: 'info', agentId: a.id, agentName: a.name,
-        title: `${a.name} has no explicit rules`,
-        detail: 'Adding rules helps keep agent behavior predictable and safe.',
-      });
-    }
-  });
-
-  if (findings.length === 0) {
-    findings.push({
-      id: 'all-good', level: 'ok',
-      title: 'Everything looks good',
-      detail: 'No issues detected. Your agents are configured safely.',
-    });
-  }
-
-  return findings;
-}
-
 // ── Main Page ──
 
 const ActivityTrustPage: React.FC = () => {
-  // Store agents: full Agent type needed for risk analysis (permissions, ruleItems, etc.)
-  const agents = useAgentsStore();
-  // Query agents: AgentSummaryView from backend — used for agent name/color lookup in runs tab
-  const { data: queryAgents = [] } = useAgentsQuery();
-  const { data: backendRuns = [] } = useAllRuns();
+  const { data: queryAgents = [], isLoading: agentsLoading } = useAgentsQuery();
+  const { data: backendRuns = [], isLoading: runsLoading } = useAllRuns();
+  const { data: credentials = [] } = useCredentials();
   const navigate = useNavigate();
-  const loading = useSimulatedLoading(400);
+  const loading = agentsLoading || runsLoading;
 
   const [tab, setTab] = useState<Tab>('runs');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -179,22 +103,19 @@ const ActivityTrustPage: React.FC = () => {
     return result;
   }, [allRuns, statusFilter, agentFilter, search]);
 
-  // Trust data — local analysis + backend persisted findings merged
+  // Trust data — backend only
   const { data: backendFindings = [] } = useTrustFindings();
-  const localFindings = useMemo(() => analyzeRisks(agents), [agents]);
-  const findings = useMemo(() => {
-    const fromBackend: Finding[] = backendFindings.map(f => ({
+  const findings = useMemo<Finding[]>(() => {
+    if (backendFindings.length === 0) return [];
+    return backendFindings.map(f => ({
       id: f.id,
       level: (f.level as Finding['level']) ?? 'info',
       title: f.title,
       detail: f.detail,
       agentId: f.agentId,
-      agentName: agents.find(a => a.id === f.agentId)?.name,
+      agentName: queryAgents.find(a => a.id === f.agentId)?.name,
     }));
-    // Deduplicate: backend findings take precedence over local ones with the same id
-    const backendIds = new Set(fromBackend.map(f => f.id));
-    return [...fromBackend, ...localFindings.filter(f => !backendIds.has(f.id))];
-  }, [backendFindings, localFindings, agents]);
+  }, [backendFindings, queryAgents]);
   const warnings = findings.filter(f => f.level === 'warning' || f.level === 'risk');
   const infos = findings.filter(f => f.level === 'info');
   const allGood = warnings.length === 0;
@@ -210,9 +131,10 @@ const ActivityTrustPage: React.FC = () => {
     return result;
   }, [findings, trustLevel, trustSearch]);
 
-  const localAgents = agents.filter(a => a.runtimeMode === 'local');
-  const cloudAgents = agents.filter(a => a.runtimeMode === 'cloud' || a.runtimeMode === 'hybrid');
-  const bgAgents = agents.filter(a => a.backgroundEnabled);
+  const localAgents = queryAgents.filter(a => a.runtimeMode === 'local');
+  const cloudAgents = queryAgents.filter(a => a.runtimeMode === 'cloud' || a.runtimeMode === 'hybrid');
+  const bgAgents = queryAgents.filter(a => a.backgroundEnabled);
+  const connectedProviders = new Set(credentials.map(c => c.provider));
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -440,14 +362,14 @@ const ActivityTrustPage: React.FC = () => {
                   <Lock className="w-4 h-4 text-muted-foreground" /> Agent Permissions
                 </h2>
                 <div className="space-y-2">
-                  {agents.map(a => (
+                  {queryAgents.map(a => (
                     <button
                       key={a.id}
                       onClick={() => navigate(`/agents/${a.id}`)}
                       className="w-full p-3 bg-card border border-border rounded-xl text-left hover:shadow-sm transition-shadow"
                     >
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-primary-foreground" style={{ backgroundColor: a.appearance.outfitColor }}>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-primary-foreground" style={{ backgroundColor: (a as any).outfitColor ?? '#6366f1' }}>
                           {a.name[0]}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -461,15 +383,10 @@ const ActivityTrustPage: React.FC = () => {
                       <div className="flex flex-wrap gap-1.5">
                         <PermChip icon={a.runtimeMode === 'local' ? Cpu : Cloud} label={a.runtimeMode === 'local' ? 'Local' : 'Cloud'} />
                         <PermChip icon={a.backgroundEnabled ? RefreshCw : Clock} label={a.backgroundEnabled ? 'Background' : 'Manual'} />
-                        {a.permissions?.networkAccess && <PermChip icon={Globe} label="Internet" />}
-                        {a.permissions?.toolScopes?.slice(0, 2).map(t => <PermChip key={t} icon={Wrench} label={t} />)}
-                        {(a.permissions?.toolScopes?.length || 0) > 2 && (
-                          <span className="text-[9px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded-full">+{(a.permissions?.toolScopes?.length || 0) - 2}</span>
-                        )}
                       </div>
                     </button>
                   ))}
-                  {agents.length === 0 && (
+                  {queryAgents.length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-6">No agents yet</p>
                   )}
                 </div>
@@ -499,17 +416,19 @@ const ActivityTrustPage: React.FC = () => {
                     </p>
                   </div>
                   <div className="p-3 bg-card border border-border rounded-xl">
-                    <p className="text-xs font-semibold text-foreground mb-1.5">Cloud model connections</p>
-                    <div className="space-y-1">
-                      {['openai', 'anthropic', 'google'].map(provider => (
-                        <div key={provider} className="flex items-center justify-between text-[10px]">
-                          <span className="text-muted-foreground capitalize">{provider}</span>
-                          <span className={`font-medium ${hasProviderKey(provider) ? 'text-status-working' : 'text-muted-foreground'}`}>
-                            {hasProviderKey(provider) ? 'Connected' : 'Not set'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="text-xs font-semibold text-foreground mb-1.5">Provider connections</p>
+                    {credentials.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground">No providers connected. Add API keys in Settings.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {credentials.map(c => (
+                          <div key={c.provider} className="flex items-center justify-between text-[10px]">
+                            <span className="text-muted-foreground capitalize">{c.provider}</span>
+                            <span className="font-medium text-status-working">{c.masked}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>

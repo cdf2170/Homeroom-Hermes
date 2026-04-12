@@ -26,6 +26,7 @@ export async function createTestApp() {
     cloudProvider: "openai",
     cloudModel: "gpt-4o",
     logLevel: "silent",
+    vaultPath: "/tmp/homeroom-test-vault",
   };
 
   const db = createDb(config.dbPath);
