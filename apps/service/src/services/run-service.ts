@@ -5,6 +5,7 @@ import type { AuditService } from "./audit-service.js";
 import type { RuntimeAdapter } from "@homeroom/adapter-core";
 import type { RunRecord } from "@homeroom/schemas";
 import { NotFoundError } from "../lib/errors.js";
+import { emit } from "../lib/event-bus.js";
 
 export function createRunService(
   runRepo: RunRepo,
@@ -27,16 +28,16 @@ export function createRunService(
       return runRepo.findById(id);
     },
 
-    async start(agentId: string, input: string): Promise<RunRecord> {
+    async start(agentId: string, input: string, trigger: RunRecord["trigger"] = "manual"): Promise<RunRecord> {
       const agent = agentRepo.findById(agentId);
 
       const projection = runtimeProjectionRepo.findByAgentId(agentId);
-      const backendRef = projection?.backendRef ?? agentId; // fallback for mock
+      const backendRef = projection?.backendRef ?? agentId;
 
       // Create local record immediately
       const record = runRepo.insert({
         agentId,
-        trigger: "manual",
+        trigger,
         status: "running",
         finishedAt: null,
         inputSummary: input.slice(0, 1000),
@@ -46,15 +47,17 @@ export function createRunService(
       });
 
       auditService.append({
-        actor: "user",
-        sourceMode: "user",
+        actor: trigger === "schedule" ? "system" : "user",
+        sourceMode: trigger === "schedule" ? "system" : "user",
         eventType: "run.started",
         targetType: "run",
         targetId: record.id,
-        summary: `Run started for agent "${agent.name}"`,
+        summary: `Run started for agent "${agent.name}" (${trigger})`,
         permissionContext: null,
         runId: record.id,
       });
+
+      emit("run.started", { runId: record.id, agentId });
 
       // Kick off adapter run (fire-and-forget; poll in background)
       const timeoutSeconds = 120;
@@ -99,6 +102,12 @@ export function createRunService(
               permissionContext: null,
               runId: record.id,
             });
+
+            if (finalStatus === "completed") {
+              emit("run.completed", { runId: record.id, agentId, status: finalStatus });
+            } else {
+              emit("run.failed", { runId: record.id, agentId, error: latest.errorSummary?.slice(0, 200) ?? "unknown" });
+            }
             break;
           } catch {
             // Adapter poll error — keep trying until deadline
@@ -126,17 +135,20 @@ export function createRunService(
             permissionContext: null,
             runId: record.id,
           });
+          emit("run.failed", { runId: record.id, agentId, error: `Timed out after ${timeoutSeconds}s` });
         }
       }).catch((err) => {
+        const errMsg = `Adapter error: ${String(err?.message ?? err).slice(0, 500)}`;
         runRepo.update(record.id, {
           status: "failed",
           finishedAt: new Date().toISOString(),
-          errorSummary: `Adapter error: ${String(err?.message ?? err).slice(0, 500)}`,
+          errorSummary: errMsg,
         });
         agentRepo.update(agentId, {
           lastRunAt: new Date().toISOString(),
           lastRunStatus: "failed",
         });
+        emit("run.failed", { runId: record.id, agentId, error: errMsg.slice(0, 200) });
       });
 
       return record;

@@ -5,7 +5,7 @@ export interface Config {
   port: number;
   host: string;
   dbPath: string;
-  adapter: "mock" | "hermes" | "ollama" | "cloud";
+  adapter: "hermes" | "ollama" | "cloud";
   /** Path to the hermes binary. Defaults to "hermes" (on PATH). */
   hermesCliPath: string;
   /** Timeout (seconds) for a single agent turn. Defaults to 120. */
@@ -23,12 +23,28 @@ export interface Config {
   vaultPath: string;
 }
 
+const VALID_ADAPTERS: Config["adapter"][] = ["hermes", "ollama", "cloud"];
+
+function validateAdapter(raw: string | undefined): Config["adapter"] {
+  if (!raw) return "hermes";
+  if (raw === "mock") {
+    console.warn(
+      "[WARN] ADAPTER=mock is no longer supported for production use. Use ADAPTER=hermes. Falling back to hermes.",
+    );
+    return "hermes";
+  }
+  if (!VALID_ADAPTERS.includes(raw as Config["adapter"])) {
+    throw new Error(`Unknown adapter "${raw}". Valid: ${VALID_ADAPTERS.join(", ")}`);
+  }
+  return raw as Config["adapter"];
+}
+
 export function loadConfig(): Config {
   return {
     port:                 parseInt(process.env["PORT"] ?? "5174", 10),
     host:                 process.env["HOST"] ?? "127.0.0.1",
     dbPath:               process.env["DB_PATH"] ?? resolve(process.cwd(), "homeroom.db"),
-    adapter:              (process.env["ADAPTER"] as Config["adapter"]) ?? "hermes",
+    adapter:              validateAdapter(process.env["ADAPTER"]),
     hermesCliPath:        process.env["HERMES_CLI_PATH"] ?? "hermes",
     hermesTimeoutSeconds: parseInt(process.env["HERMES_TIMEOUT_SECONDS"] ?? "120", 10),
     ollamaBaseUrl:        process.env["OLLAMA_BASE_URL"] ?? "http://127.0.0.1:11434",

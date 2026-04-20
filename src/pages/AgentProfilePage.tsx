@@ -25,8 +25,6 @@ import {
 } from '@/types/agent';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { getPendingForAgent, resolveApproval } from '@/store/approvalStore';
-import { CATEGORY_LABELS } from '@/types/approval';
 import { addAgent } from '@/store/agentStore';
 
 // ── Helpers ──
@@ -291,6 +289,53 @@ const AgentProfilePage: React.FC = () => {
 
       {/* Main content */}
       <div className="flex-1 overflow-y-auto p-6 max-w-3xl">
+        {/* Summary strip */}
+        <div className="flex flex-wrap items-center gap-2 mb-6 p-3 bg-muted/30 rounded-xl border border-border">
+          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold ${
+            agent.runtimeMode === 'local' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-blue-500/10 text-blue-600'
+          }`}>
+            {agent.runtimeMode === 'local' ? <Cpu className="w-3 h-3" /> : <Cloud className="w-3 h-3" />}
+            {agent.runtimeMode === 'local' ? 'Runs locally' : 'Uses cloud AI'}
+          </span>
+          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold ${
+            agent.permissions ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-600'
+          }`}>
+            <Shield className="w-3 h-3" />
+            {agent.permissions?.safetyLevel ?? 'No guardrails'}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">
+            <Clock className="w-3 h-3" />
+            {runs.length > 0 && runs[0].startedAt ? timeAgo(runs[0].startedAt) : (agent.lastRunAt ? timeAgo(agent.lastRunAt) : 'Never run')}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold bg-muted text-muted-foreground">
+            <Calendar className="w-3 h-3" />
+            {agent.scheduleSummary ?? 'Manual'}
+          </span>
+          {agent.permissions?.networkAccess && (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-600">
+              <Globe className="w-3 h-3" /> Internet
+            </span>
+          )}
+        </div>
+
+        {/* Post-create nudges */}
+        {runs.length === 0 && !agent.ruleItems?.length && !agent.schedule && (
+          <div className="mb-6 p-4 bg-card border border-dashed border-primary/30 rounded-xl">
+            <p className="text-xs font-semibold text-foreground mb-3">Get started with {agent.name}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => setSection('rules')}>
+                <Shield className="w-3 h-3" /> Add a first rule
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => taskAssignerRef.current?.focus()}>
+                <Play className="w-3 h-3" /> Run a test task
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => setSection('rules')}>
+                <AlertTriangle className="w-3 h-3" /> Review safety
+              </Button>
+            </div>
+          </div>
+        )}
+
         {section === 'profile'    && <ProfileSection agent={agent} onSetState={handleSetState} taskAssignerRef={taskAssignerRef} runs={runs} onRun={v => runAgent.mutate(v)} />}
         {section === 'brief'      && <BriefSection agent={agent} />}
         {section === 'rules'      && <RulesAndAccessSection agent={agent} />}
@@ -380,8 +425,6 @@ const ProfileSection = ({ agent, onSetState, taskAssignerRef, runs = [], onRun }
         <StatCard label="Last run" value={runs[0] ? timeAgo(runs[0].startedAt) : (agent.lastRunAt ? timeAgo(agent.lastRunAt) : 'Never')} />
       </div>
 
-      {/* Pending approvals for this agent */}
-      <PendingApprovalsCard agent={agent} />
 
       {/* Quick actions: Duplicate + Approve all */}
       <AgentQuickActions agent={agent} />
@@ -389,68 +432,6 @@ const ProfileSection = ({ agent, onSetState, taskAssignerRef, runs = [], onRun }
   );
 };
 
-// ── Pending Approvals Card (per-agent) ──
-
-const PendingApprovalsCard = ({ agent }: { agent: Agent }) => {
-  const pending = getPendingForAgent(agent.id);
-  const [, setTick] = useState(0);
-
-  if (pending.length === 0) return null;
-
-  const handleApprove = (id: string) => {
-    resolveApproval(id, 'approved');
-    setTick(t => t + 1);
-    toast.success('Request approved');
-  };
-
-  const handleDeny = (id: string) => {
-    resolveApproval(id, 'denied');
-    setTick(t => t + 1);
-    toast.success('Request denied');
-  };
-
-  return (
-    <div className="p-4 bg-card border border-status-waiting/30 rounded-xl">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5 text-status-waiting" />
-          {pending.length} pending request{pending.length !== 1 ? 's' : ''}
-        </p>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 text-[10px]"
-          onClick={() => {
-            pending.forEach(p => resolveApproval(p.id, 'approved'));
-            setTick(t => t + 1);
-            toast.success(`Approved ${pending.length} requests`);
-          }}
-        >
-          <CheckCircle2 className="w-3 h-3" /> Approve all
-        </Button>
-      </div>
-      <div className="space-y-2">
-        {pending.map(req => (
-          <div key={req.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground">{req.title}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{req.detail}</p>
-              <span className="text-[10px] text-muted-foreground">{CATEGORY_LABELS[req.category]}</span>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" onClick={() => handleDeny(req.id)}>
-                <XCircle className="w-3.5 h-3.5" />
-              </Button>
-              <Button size="sm" className="h-7 text-[10px] px-2" onClick={() => handleApprove(req.id)}>
-                <CheckCircle2 className="w-3 h-3" /> Approve
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 // ── Quick Actions (Duplicate + Approve) ──
 
@@ -477,22 +458,8 @@ const AgentQuickActions = ({ agent }: { agent: Agent }) => {
     navigate(`/agents/${newId}`);
   };
 
-  const pending = getPendingForAgent(agent.id);
-
   return (
     <div className="flex items-center gap-2">
-      {pending.length > 0 && (
-        <Button
-          size="sm"
-          className="flex-1 text-xs h-9"
-          onClick={() => {
-            pending.forEach(p => resolveApproval(p.id, 'approved'));
-            toast.success(`Approved ${pending.length} requests from ${agent.name}`);
-          }}
-        >
-          <CheckCircle2 className="w-3.5 h-3.5" /> Approve {pending.length} request{pending.length !== 1 ? 's' : ''}
-        </Button>
-      )}
       <Button size="sm" variant="outline" className="flex-1 text-xs h-9" onClick={handleDuplicate}>
         <Copy className="w-3.5 h-3.5" /> Duplicate
       </Button>
@@ -790,9 +757,29 @@ const RulesAndAccessSection = ({ agent }: { agent: Agent }) => {
             </div>
           ))}
           {items.length === 0 && (
-            <div className="text-center py-8 border border-dashed border-border rounded-xl">
-              <Shield className="w-6 h-6 mx-auto text-muted-foreground/40 mb-2" />
-              <p className="text-xs text-muted-foreground">No rules yet — they'll be checked before every action.</p>
+            <div className="py-6 px-4 border border-dashed border-border rounded-xl">
+              <div className="text-center mb-4">
+                <Shield className="w-6 h-6 mx-auto text-muted-foreground/40 mb-2" />
+                <p className="text-xs text-muted-foreground">No rules yet. Start with one of these:</p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                {[
+                  { text: 'Never send emails without my approval', priority: 'hard-rule' as RulePriority },
+                  { text: 'Always ask before accessing files', priority: 'safe' as RulePriority },
+                  { text: 'Keep responses concise', priority: 'preference' as RulePriority },
+                ].map(({ text, priority }) => (
+                  <button
+                    key={text}
+                    onClick={() => {
+                      updateAgent(agent.id, { ruleItems: [...items, { id: `rule-${Date.now()}`, content: text, priority, enabled: true, order: items.length }] });
+                      toast.success('Rule added');
+                    }}
+                    className="px-3 py-1.5 text-[11px] bg-card border border-border rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-colors text-foreground"
+                  >
+                    + {text}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -893,10 +880,15 @@ const ScheduleSection = ({ agent }: { agent: Agent }) => {
       </div>
 
       {agent.schedule && (
-        <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">
-          <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
-          <p className="text-[11px] text-muted-foreground">
-            Next run: <span className="font-medium text-foreground">{agent.schedule.nextRunAt ? timeAgo(agent.schedule.nextRunAt) : 'TBD'}</span> · {agent.schedule.plainEnglish}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">
+            <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+            <p className="text-[11px] text-muted-foreground">
+              Next run: <span className="font-medium text-foreground">{agent.schedule.nextRunAt ? timeAgo(agent.schedule.nextRunAt) : 'Computing...'}</span> · {agent.schedule.plainEnglish}
+            </p>
+          </div>
+          <p className="text-[10px] text-muted-foreground px-1">
+            Schedules run while the Homeroom service is active. If the service is stopped, scheduled runs will not fire.
           </p>
         </div>
       )}
@@ -1044,15 +1036,22 @@ const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
     );
   }
 
-  const syncLabel = status.inSync ? 'In sync' : 'Stale';
-  const syncColor = status.inSync ? 'bg-status-working/10 text-status-working' : 'bg-status-waiting/10 text-status-waiting';
+  const driftStatus = status.driftStatus ?? (status.inSync ? 'in-sync' : 'backend-ahead');
+  const driftLabels: Record<string, { label: string; color: string; message: string }> = {
+    'in-sync':       { label: 'In sync',         color: 'bg-status-working/10 text-status-working',  message: '' },
+    'backend-ahead': { label: 'Backend changed',  color: 'bg-status-waiting/10 text-status-waiting',  message: 'Backend state changed since last write. Rebuild to update vault files.' },
+    'disk-modified': { label: 'Files edited',     color: 'bg-amber-500/10 text-amber-600',            message: 'On-disk vault files were modified outside Homeroom. Rebuilding will overwrite manual edits.' },
+    'not-written':   { label: 'Not written',      color: 'bg-muted text-muted-foreground',            message: 'Vault files have not been written yet. Run a rebuild to generate them.' },
+    'diverged':      { label: 'Diverged',         color: 'bg-red-500/10 text-red-600',                message: 'Both backend state and on-disk files changed independently. Rebuilding will overwrite disk edits with current backend state.' },
+  };
+  const drift = driftLabels[driftStatus] ?? driftLabels['backend-ahead'];
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-3">
       <div className="flex items-center gap-2">
         <BookMarked className="w-4 h-4 text-primary" />
         <p className="text-xs font-semibold text-foreground">Docs vault</p>
-        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-auto ${syncColor}`}>{syncLabel}</span>
+        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-auto ${drift.color}`}>{drift.label}</span>
       </div>
 
       <p className="text-xs font-mono text-muted-foreground bg-muted px-3 py-2 rounded-lg break-all">
@@ -1064,10 +1063,10 @@ const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
           <span className="text-muted-foreground/60 w-20 shrink-0">Last synced</span>
           <span>{status.syncedAt ? new Date(status.syncedAt).toLocaleString() : 'Never'}</span>
         </div>
-        {!status.inSync && (
+        {drift.message && (
           <div className="flex items-start gap-2 mt-1 px-2 py-1.5 bg-status-waiting/5 border border-status-waiting/20 rounded-lg">
             <AlertTriangle className="w-3 h-3 text-status-waiting shrink-0 mt-0.5" />
-            <span className="text-[10px] text-status-waiting">Docs are out of sync with backend state. Rebuild to update.</span>
+            <span className="text-[10px] text-status-waiting">{drift.message}</span>
           </div>
         )}
       </div>
@@ -1114,7 +1113,7 @@ const WorkspaceSection = ({ agent }: { agent: Agent }) => {
           <FolderOpen className="w-8 h-8 mx-auto text-status-waiting/60 mb-3" />
           <p className="text-sm font-medium text-foreground mb-1">No workspace set up yet</p>
           <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
-            A workspace is a folder on your computer where this agent's documents live. It's what OpenClaw reads before every task.
+            A workspace is a folder on your computer where this agent's documents live. Homeroom writes configuration here as markdown files.
           </p>
           <Button size="sm" onClick={() => {
             const path = `~/homeroom-workspaces/${agent.name.toLowerCase().replace(/\s+/g, '-')}`;
@@ -1162,11 +1161,11 @@ const WorkspaceSection = ({ agent }: { agent: Agent }) => {
           {/* Vault status */}
           <VaultStatusPanel agentId={agent.id} />
 
-          {/* OpenClaw note */}
+          {/* Vault sync note */}
           <div className="flex items-start gap-2 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">
             <GitBranch className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
             <p className="text-[11px] text-muted-foreground">
-              This workspace is what OpenClaw reads on disk. Every edit you make in Homeroom syncs here — and vice versa.
+              This workspace mirrors your agent configuration as markdown files. Edits flow one way: from Homeroom to disk. Manual file edits are not read back.
             </p>
           </div>
         </>
@@ -1239,7 +1238,7 @@ const TaskAssigner = ({ agent, textareaRef, onRun }: { agent: Agent; textareaRef
     if (onRun) {
       onRun(input.trim());
     } else {
-      // Fallback: local store update (demo / offline mode)
+      // Fallback: local store update when backend is unreachable
       updateAgent(agent.id, {
         currentTask: input.trim(), state: 'working', zone: 'work',
         lastRunAt: new Date(), lastRunStatus: 'running',

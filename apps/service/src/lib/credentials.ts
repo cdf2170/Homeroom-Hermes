@@ -20,6 +20,10 @@ import { homedir, hostname } from "os";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from "fs";
 import { spawnSync } from "child_process";
+import { webcrypto } from "crypto";
+
+// Node's webcrypto CryptoKey type is not on globalThis by default; alias here.
+type CryptoKey = Awaited<ReturnType<typeof webcrypto.subtle.generateKey>> extends infer T ? T extends { type: string } ? T : any : any;
 
 // ── paths ─────────────────────────────────────────────────────────────────────
 
@@ -220,7 +224,15 @@ export async function setCredential(provider: string, key: string): Promise<void
 export async function getCredential(provider: string): Promise<string | null> {
   try {
     const store = await readStore();
-    return store.credentials[provider]?.key ?? null;
+    // Case-insensitive lookup — frontend stores "OpenRouter", adapter requests "openrouter"
+    const key = store.credentials[provider]?.key;
+    if (key) return key;
+    // Try case-insensitive match
+    const lowerProvider = provider.toLowerCase();
+    for (const [k, v] of Object.entries(store.credentials)) {
+      if (k.toLowerCase() === lowerProvider) return v.key;
+    }
+    return null;
   } catch {
     return null;
   }

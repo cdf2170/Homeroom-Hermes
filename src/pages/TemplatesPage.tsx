@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { agentTemplates } from '@/data/mockAgents';
+import { agentTemplates } from '@/data/agentTemplates';
 import { STARTER_AGENTS, StarterAgent } from '@/data/starterPack';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

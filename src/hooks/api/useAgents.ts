@@ -172,6 +172,17 @@ export function useTrustFindings() {
   });
 }
 
+/** Locally available Ollama models. Refetches every 60s. */
+export function useLocalModels() {
+  return useQuery({
+    queryKey: ['runtime', 'local-models'],
+    queryFn: () => backendApi.listLocalModels(),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+}
+
 /** Vault sync status for a single agent (includes drift detection). */
 export function useAgentVaultStatus(agentId: string) {
   return useQuery({

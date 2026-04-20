@@ -1,18 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import OfficeFloor from '@/components/office/OfficeFloor';
 import AgentInspector from '@/components/office/AgentInspector';
 import WelcomeModal from '@/components/office/WelcomeModal';
 import { useAgents } from '@/store/agentStore';
-import { useAgentSimulation } from '@/hooks/useAgentSimulation';
+import { useAgentSimulation, useVisualOverrides } from '@/hooks/useAgentSimulation';
 
 const OfficePage: React.FC = () => {
   const agents = useAgents();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const selectedAgent = agents.find(a => a.id === selectedAgentId) || null;
 
-  // Start the agent behavior simulation
+  // Start the visual-only simulation (does not mutate real agent state)
   useAgentSimulation();
+  const visualOverrides = useVisualOverrides();
+
+  // Merge visual overrides on top of real agent data for display only
+  const displayAgents = useMemo(() =>
+    agents.map(a => {
+      const override = visualOverrides.get(a.id);
+      return override ? { ...a, state: override.state, zone: override.zone } : a;
+    }),
+    [agents, visualOverrides],
+  );
+
+  const selectedAgent = displayAgents.find(a => a.id === selectedAgentId) || null;
 
   React.useEffect(() => {
     if (selectedAgentId && !agents.find(a => a.id === selectedAgentId)) {
@@ -20,10 +31,10 @@ const OfficePage: React.FC = () => {
     }
   }, [agents, selectedAgentId]);
 
-  const workingCount = agents.filter(a => a.state === 'working').length;
-  const waitingCount = agents.filter(a => a.state === 'waiting' || a.state === 'needs-attention').length;
-  const breakCount = agents.filter(a => a.state === 'on-break').length;
-  const idleCount = agents.filter(a => a.state === 'idle').length;
+  const workingCount = displayAgents.filter(a => a.state === 'working').length;
+  const waitingCount = displayAgents.filter(a => a.state === 'waiting' || a.state === 'needs-attention').length;
+  const breakCount = displayAgents.filter(a => a.state === 'on-break').length;
+  const idleCount = displayAgents.filter(a => a.state === 'idle').length;
 
   return (
     <div className="h-full flex flex-col relative">
@@ -52,30 +63,42 @@ const OfficePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Office scene + inspector */}
-      <div className="flex-1 flex min-h-0">
-        <div className="flex-1 p-2 min-h-0">
-          <OfficeFloor
-            agents={agents}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={setSelectedAgentId}
-          />
+      {/* Empty state */}
+      {agents.length === 0 && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">No agents yet.</p>
+            <p className="text-xs text-muted-foreground">Create an agent to see the office come alive.</p>
+          </div>
         </div>
+      )}
 
-        <AnimatePresence>
-          {selectedAgent && (
-            <motion.div
-              className="agent-inspector shrink-0 p-2 pr-1"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <AgentInspector agent={selectedAgent} onClose={() => setSelectedAgentId(null)} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Office scene + inspector */}
+      {agents.length > 0 && (
+        <div className="flex-1 flex min-h-0">
+          <div className="flex-1 p-2 min-h-0">
+            <OfficeFloor
+              agents={displayAgents}
+              selectedAgentId={selectedAgentId}
+              onSelectAgent={setSelectedAgentId}
+            />
+          </div>
+
+          <AnimatePresence>
+            {selectedAgent && (
+              <motion.div
+                className="agent-inspector shrink-0 p-2 pr-1"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'auto', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <AgentInspector agent={selectedAgent} onClose={() => setSelectedAgentId(null)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 };

@@ -17,7 +17,7 @@ import {
   useModelStore, getAgentModel, setAgentModel, toggleFavorite, isFavorite,
   addCustomModel, hasProviderKey, setProviderKey, removeProviderKey,
 } from '@/store/modelConfigStore';
-import { useCredentials, useSaveCredential, useDeleteCredential } from '@/hooks/api/useAgents';
+import { useCredentials, useSaveCredential, useDeleteCredential, useLocalModels } from '@/hooks/api/useAgents';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -253,6 +253,7 @@ const ModelQuickSwitcher: React.FC<{ agentId: string; agentName: string; initial
   const [customName, setCustomName] = useState('');
   const [customProvider, setCustomProvider] = useState('');
   const { data: credentials = [] } = useCredentials();
+  const { data: localModelsData } = useLocalModels();
   const update = useUpdateAgent(agentId);
 
   // Prefer the backend-persisted modelRef; fall back to localStorage
@@ -260,6 +261,13 @@ const ModelQuickSwitcher: React.FC<{ agentId: string; agentName: string; initial
   const localModelId = getAgentModel(agentId);
   const currentModelId = backendModelId || localModelId || null;
   const currentModel = AI_MODELS.find(m => m.id === currentModelId);
+  const currentLocalModel = currentModelId && !currentModel ? localModelsData?.models.find(m => m.id === currentModelId) : null;
+  const currentModelName = currentModel?.name ?? currentLocalModel?.name ?? currentModelId;
+  const currentModelDesc = currentModel
+    ? `${currentModel.provider} · ${COST_LABELS[currentModel.costTier]} · ${currentModel.contextWindow}`
+    : currentLocalModel
+    ? `Local · ${currentLocalModel.sizeGB}GB · ${currentLocalModel.parameterSize ?? currentLocalModel.tag}`
+    : currentModelId ? 'Custom model' : 'Click to choose a model';
 
   // Build connected provider set from backend credentials + localStorage fallback
   const connectedProviders = new Set<string>([
@@ -307,15 +315,13 @@ const ModelQuickSwitcher: React.FC<{ agentId: string; agentName: string; initial
           className="w-full p-2.5 flex items-center justify-between hover:bg-accent/50 transition-colors"
         >
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs font-mono font-bold text-muted-foreground">{currentModel?.providerIcon || '---'}</span>
+            <span className="text-xs font-mono font-bold text-muted-foreground">{currentLocalModel ? 'LC' : currentModel?.providerIcon || '---'}</span>
             <div className="text-left min-w-0">
               <p className="text-xs font-medium text-foreground truncate">
-                {currentModel?.name || 'No model selected'}
+                {currentModelName || 'No model selected'}
               </p>
               <p className="text-[10px] text-muted-foreground truncate">
-                {currentModel
-                  ? `${currentModel.provider} · ${COST_LABELS[currentModel.costTier]} · ${currentModel.contextWindow}`
-                  : 'Click to choose a model'}
+                {currentModelDesc}
               </p>
             </div>
           </div>
@@ -384,7 +390,36 @@ const ModelQuickSwitcher: React.FC<{ agentId: string; agentName: string; initial
                     </div>
                   ))}
 
-                  {allModels.length === 0 && filter && (
+                  {/* Local Ollama models */}
+                  {localModelsData?.ollamaRunning && localModelsData.models.length > 0 && (
+                    <div className="px-2 pb-1">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1 mt-1 flex items-center gap-1">
+                        <Cpu className="w-2.5 h-2.5" /> Local (Ollama)
+                      </p>
+                      {localModelsData.models
+                        .filter(m => !filter || m.name.toLowerCase().includes(filter.toLowerCase()))
+                        .map(m => (
+                          <button
+                            key={m.id}
+                            onClick={() => handleSelect(m.id)}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${
+                              m.id === currentModelId ? 'bg-primary/10 text-primary' : 'hover:bg-accent/50'
+                            }`}
+                          >
+                            <span className="text-[10px] font-mono font-bold text-emerald-600 w-6 text-center shrink-0">LC</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-foreground truncate">{m.name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {m.sizeGB}GB · {m.parameterSize ?? m.tag} · Local
+                              </p>
+                            </div>
+                            {m.id === currentModelId && <Check className="w-3 h-3 text-primary shrink-0" />}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+
+                  {allModels.length === 0 && (!localModelsData?.models.length) && filter && (
                     <p className="text-xs text-muted-foreground text-center py-3">No models match "{filter}"</p>
                   )}
                 </div>

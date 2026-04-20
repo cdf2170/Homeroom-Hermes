@@ -21,6 +21,8 @@ export const agents = sqliteTable("agents", {
   scheduleSummary: text("schedule_summary"),
   permissionProfileId: text("permission_profile_id"),
   appearanceId: text("appearance_id"),
+  /** JSON-serialized AgentAppearance object */
+  appearance: text("appearance"),
 
   // Extended profile fields
   role: text("role").notNull().default(""),

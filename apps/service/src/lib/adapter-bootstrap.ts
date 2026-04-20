@@ -1,5 +1,5 @@
 import type { RuntimeAdapter } from "@homeroom/adapter-core";
-import { HermesAdapter, MockOpenClawAdapter } from "@homeroom/adapter-hermes";
+import { HermesAdapter } from "@homeroom/adapter-hermes";
 import { OllamaAdapter } from "@homeroom/adapter-ollama";
 import { CloudAdapter } from "@homeroom/adapter-cloud";
 import { getCredential } from "./credentials.js";
@@ -13,8 +13,6 @@ export async function buildAdapter(config: Config): Promise<RuntimeAdapter> {
         timeoutSeconds: config.hermesTimeoutSeconds,
         getProviderKey: getCredential,
       });
-    case "mock":
-      return new MockOpenClawAdapter();
     case "ollama":
       return new OllamaAdapter({
         baseUrl: config.ollamaBaseUrl,

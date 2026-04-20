@@ -12,6 +12,37 @@ import type { AgentProfile } from "@homeroom/domain";
 import type { VaultService } from "./vault-service.js";
 import { now } from "../lib/time.js";
 
+// ── Appearance helpers ────────────────────────────────────────────────────────
+
+const OUTFIT_PALETTE = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6', '#5B8C5A', '#C06030', '#4A6FA5', '#9B59B6', '#2C3E50'];
+const SKIN_TONES = ['#FDDBB4', '#F1C27D', '#D2A679', '#8D5524', '#6B3A2A'];
+const HAIR_COLORS = ['#1A1A1A', '#3B2716', '#A0522D', '#D4A44C', '#4A4A4A'];
+const HAIR_STYLES = ['short', 'long', 'curly', 'buzz', 'ponytail', 'bun', 'wavy', 'afro'];
+const BODY_TYPES = ['masculine', 'feminine'];
+
+function seededRandom(seed: string): () => number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = seed.charCodeAt(i) + ((h << 5) - h);
+  return () => { h = (h * 16807 + 0) % 2147483647; return (h & 0x7fffffff) / 2147483647; };
+}
+
+function generateDefaultAppearance(name: string): Record<string, unknown> {
+  const rng = seededRandom(name);
+  const pick = <T>(arr: T[]): T => arr[Math.floor(rng() * arr.length)] as T;
+  return {
+    bodyType: pick(BODY_TYPES),
+    skinTone: pick(SKIN_TONES),
+    hairStyle: pick(HAIR_STYLES),
+    hairColor: pick(HAIR_COLORS),
+    outfitStyle: 'casual',
+    outfitColor: pick(OUTFIT_PALETTE),
+    accentColor: pick(OUTFIT_PALETTE),
+    shoeColor: '#333',
+    glasses: 'none',
+    headwear: 'none',
+  };
+}
+
 export function createAgentService(
   agentRepo: AgentRepo,
   memoryRepo: MemoryRepo,
@@ -68,6 +99,7 @@ export function createAgentService(
     },
 
     async create(req: CreateAgentRequest): Promise<AgentProfile> {
+      const defaultAppearance = generateDefaultAppearance(req.name);
       const profile = agentRepo.insert({
         name: req.name,
         purpose: req.purpose ?? "",
@@ -86,6 +118,7 @@ export function createAgentService(
         scheduleSummary: null,
         permissionProfileId: null,
         appearanceId: null,
+        appearance: JSON.stringify(defaultAppearance),
         role: "",
         instructions: "",
         audienceNotes: "",

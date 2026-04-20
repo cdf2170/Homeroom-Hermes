@@ -138,7 +138,7 @@ const KeyEntryCard: React.FC<{
         <div className="flex-1">
           <p className="font-semibold text-sm text-foreground">{info.name}</p>
           {saved && (
-            <p className="text-[11px] text-muted-foreground font-mono">{masked}</p>
+            <p className="text-[11px] text-muted-foreground font-mono">Key saved</p>
           )}
         </div>
         {saved && (

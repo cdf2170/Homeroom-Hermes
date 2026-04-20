@@ -27,6 +27,9 @@ export const UpdateAgentRequest = z
 
     // Model selection (e.g. "anthropic/claude-3.5-sonnet")
     modelRef: z.string().nullable(),
+
+    // Appearance (JSON-serialized object with bodyType, skinTone, hairStyle, etc.)
+    appearance: z.string().nullable(),
   })
   .partial();
 

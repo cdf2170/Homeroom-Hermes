@@ -39,9 +39,15 @@ const CopyButton = ({ text }: { text: string }) => {
 // ── Terminal block ────────────────────────────────────────────────────────────
 
 const TerminalBlock = ({ command }: { command: string }) => (
-  <div className="flex items-center justify-between bg-[#0d1117] border border-white/10 rounded-lg px-4 py-3 font-mono text-sm text-white/90">
-    <span><span className="text-white/40 mr-2">$</span>{command}</span>
-    <CopyButton text={command} />
+  <div className="bg-[#0d1117] border border-white/10 rounded-lg px-4 py-3 font-mono text-sm text-white/90">
+    <div className="flex items-start gap-3">
+      <div className="flex-1 min-w-0 overflow-x-auto">
+        <pre className="whitespace-pre-wrap break-all"><span className="text-white/40 mr-2 select-none">$</span>{command}</pre>
+      </div>
+      <div className="shrink-0 pt-0.5">
+        <CopyButton text={command} />
+      </div>
+    </div>
   </div>
 );
 

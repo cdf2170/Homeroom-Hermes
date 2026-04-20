@@ -71,6 +71,22 @@ function runCli(
   });
 }
 
+/** Strip hermes CLI banners, session IDs, and box-drawing from output. */
+function stripHermesBanner(raw: string): string {
+  return raw
+    .split("\n")
+    .filter(line => {
+      const t = line.trim();
+      if (t.startsWith("╭") || t.startsWith("╰") || t.startsWith("│")) return false;
+      if (t.startsWith("session_id:")) return false;
+      if (t.startsWith("⚠️") && t.includes("Normalized model")) return false;
+      if (t.startsWith("─") && t.includes("⚕ Hermes")) return false;
+      return true;
+    })
+    .join("\n")
+    .trim();
+}
+
 // ── adapter ────────────────────────────────────────────────────────────────────
 
 export class HermesAdapter implements RuntimeAdapter {
@@ -195,14 +211,16 @@ export class HermesAdapter implements RuntimeAdapter {
 
     const mergedEnv = { ...process.env, TERM: "dumb", NO_COLOR: "1", ...providerEnv };
 
-    // hermes chat -q "<input>" --quiet [-m MODEL]  →  plain-text reply on stdout
+    // hermes chat -q "<input>" --quiet [-m MODEL]
     const args = ["chat", "-q", input, "--quiet"];
-    if (modelRef) args.push("-m", modelRef);
+    if (modelRef) {
+      args.push("-m", modelRef);
+    }
 
     const { stdout, stderr, code } = await runCli(this.cli, args, this.timeoutMs, mergedEnv);
 
     if (code === 0) {
-      const reply = stdout.trim().slice(0, 2000) || "(no output)";
+      const reply = stripHermesBanner(stdout).slice(0, 2000) || "(no output)";
       handle.status = "completed";
       handle.finishedAt = new Date().toISOString();
       handle.outputSummary = reply;

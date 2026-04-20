@@ -32,6 +32,7 @@ export function toAgentSummaryView(
     scheduleSummary: profile.scheduleSummary,
     trustPosture: computePosture(findings),
     modelRef: profile.modelRef ?? null,
+    appearance: (profile as any).appearance ?? null,
   };
 }
 

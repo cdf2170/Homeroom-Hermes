@@ -27,6 +27,8 @@ export const AgentSummaryView = z.object({
   scheduleSummary: z.string().nullable(),
   trustPosture: TrustLevel,
   modelRef: z.string().nullable().optional(),
+  /** JSON-serialized appearance object (bodyType, skinTone, hairStyle, outfitColor, etc.) */
+  appearance: z.string().nullable().optional(),
 });
 
 export type AgentSummaryView = z.infer<typeof AgentSummaryView>;

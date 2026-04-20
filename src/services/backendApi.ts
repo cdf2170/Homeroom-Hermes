@@ -73,6 +73,7 @@ interface BackendAgent {
   scheduleSummary: string | null;
   trustPosture: string;
   modelRef: string | null;
+  appearance: string | null;
 }
 
 interface BackendHealth {
@@ -115,7 +116,7 @@ const STATUS_MAP: Record<string, AgentState> = {
   'needs-attention': 'needs-attention',
 };
 
-// Generate a deterministic colour from a string (used for agent avatars).
+// Generate a deterministic colour from a string (fallback for agents without saved appearance).
 function colorFromString(s: string): string {
   const palette = [
     '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b',
@@ -126,7 +127,23 @@ function colorFromString(s: string): string {
   return palette[Math.abs(hash) % palette.length];
 }
 
+function parseAppearance(json: string | null | undefined, fallbackColor: string): Record<string, unknown> {
+  const defaults = {
+    bodyType: 'masculine', skinTone: '#F5CBA7', hairStyle: 'short', hairColor: '#4A4A4A',
+    outfitStyle: 'casual', outfitColor: fallbackColor, accentColor: fallbackColor,
+    shoeColor: '#333', glasses: 'none', headwear: 'none',
+  };
+  if (!json) return defaults;
+  try {
+    return { ...defaults, ...JSON.parse(json) };
+  } catch {
+    return defaults;
+  }
+}
+
 function mapAgent(a: BackendAgent): AgentSummaryView {
+  const fallbackColor = colorFromString(a.id);
+  const appearance = parseAppearance(a.appearance, fallbackColor);
   return {
     id:                 a.id,
     name:               a.name,
@@ -142,7 +159,7 @@ function mapAgent(a: BackendAgent): AgentSummaryView {
     lastRunAt:          a.lastRunAt ? new Date(a.lastRunAt) : null,
     lastRunStatus:      a.lastRunStatus as AgentSummaryView['lastRunStatus'],
     scheduleSummary:    a.scheduleSummary,
-    outfitColor:        colorFromString(a.id),
+    outfitColor:        (appearance.outfitColor as string) ?? fallbackColor,
     initial:            a.name.charAt(0).toUpperCase(),
     runCount:           0,
     needsAttention:     a.trustPosture === 'critical' || a.trustPosture === 'warning',
@@ -233,7 +250,7 @@ function mapAgentDetail(a: BackendDetailAgent): AgentProfileView {
     taskStyle:          (a.taskStyle as AgentProfileView['taskStyle']) ?? 'balanced',
     notifyOnComplete:   a.notifyOnComplete ?? true,
     notifyOnError:      a.notifyOnError ?? true,
-    appearance:         { bodyType: 'masculine', skinTone: '#F5CBA7', hairStyle: 'short', hairColor: '#4A4A4A', outfitStyle: 'casual', outfitColor: base.outfitColor } as any,
+    appearance:         parseAppearance(a.appearance, base.outfitColor) as any,
     defaultRoom:        base.zone,
     permissionProfileId: a.permissionProfile ? 'persisted' : null,
     activities:         [],
@@ -367,6 +384,11 @@ export const backendApi = {
   /** Rebuild vault docs for a single agent. */
   async rebuildAgentVault(id: string): Promise<{ rebuilt: boolean; agentId: string }> {
     return post(`/api/vault/rebuild/${id}`);
+  },
+
+  /** Fetch locally available Ollama models. */
+  async listLocalModels(): Promise<{ models: { id: string; name: string; tag: string; sizeGB: number; family: string | null; parameterSize: string | null; quantization: string | null }[]; ollamaRunning: boolean }> {
+    return get('/api/runtime/local-models');
   },
 
   /** Fetch trust findings across all agents. */

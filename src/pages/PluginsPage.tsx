@@ -10,7 +10,8 @@ import {
 import { toast } from 'sonner';
 import { PROVIDER_INFO } from '@/data/models';
 import { setProviderKey, removeProviderKey } from '@/store/modelConfigStore';
-import { useCredentials, useSaveCredential, useDeleteCredential } from '@/hooks/api/useAgents';
+import { useCredentials, useSaveCredential, useDeleteCredential, useLocalModels } from '@/hooks/api/useAgents';
+import { Cpu, HardDrive, Download } from 'lucide-react';
 
 // Map plugin IDs to PROVIDER_INFO keys
 const PLUGIN_PROVIDER_MAP: Record<string, string> = {
@@ -163,7 +164,7 @@ const PLUGINS: Plugin[] = [
     helpText: 'Connect with your Google account — agents can read your calendar and suggest or create events.',
     icon: Calendar,
     category: 'productivity',
-    status: 'available',
+    status: 'coming-soon',
     setupMethod: 'oauth',
     setupLabel: 'Connect with Google',
     tags: ['popular'],
@@ -186,7 +187,7 @@ const PLUGINS: Plugin[] = [
     helpText: 'Connect your Notion workspace so agents can find and update pages.',
     icon: Database,
     category: 'productivity',
-    status: 'available',
+    status: 'coming-soon',
     setupMethod: 'api-key',
     setupLabel: 'Add API key',
     tags: ['popular'],
@@ -198,7 +199,7 @@ const PLUGINS: Plugin[] = [
     helpText: 'Connect Gmail so agents can draft replies or send messages — always with your approval.',
     icon: Mail,
     category: 'communication',
-    status: 'available',
+    status: 'coming-soon',
     setupMethod: 'oauth',
     setupLabel: 'Connect with Google',
     tags: ['popular'],
@@ -210,7 +211,7 @@ const PLUGINS: Plugin[] = [
     helpText: 'Add the Homeroom bot to your Slack workspace. Agents can post updates or read public channels.',
     icon: MessageSquare,
     category: 'communication',
-    status: 'available',
+    status: 'coming-soon',
     setupMethod: 'oauth',
     setupLabel: 'Add to Slack',
   },
@@ -232,7 +233,7 @@ const PLUGINS: Plugin[] = [
     helpText: 'Create webhook URLs that trigger specific agents when called. Great for automation.',
     icon: Bell,
     category: 'communication',
-    status: 'available',
+    status: 'coming-soon',
     setupMethod: 'built-in',
     setupLabel: 'Create webhook',
   },
@@ -304,7 +305,7 @@ const PLUGINS: Plugin[] = [
     helpText: 'Agents can look things up online, read articles, and gather information.',
     icon: Globe,
     category: 'data',
-    status: 'available',
+    status: 'coming-soon',
     setupMethod: 'built-in',
     setupLabel: 'Enable',
   },
@@ -315,7 +316,7 @@ const PLUGINS: Plugin[] = [
     helpText: 'Upload documents, images, or data files for agents to reference.',
     icon: FileText,
     category: 'data',
-    status: 'available',
+    status: 'coming-soon',
     setupMethod: 'built-in',
     setupLabel: 'Enable',
   },
@@ -346,6 +347,7 @@ const PluginsPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<PluginCategory | 'all'>('all');
 
   const { data: credentials = [] } = useCredentials();
+  const { data: localModelsData } = useLocalModels();
 
   // Build a lookup: providerKey (e.g. "OpenAI") → maskedKey
   const credMap = Object.fromEntries(credentials.map(c => [c.provider, c.masked]));
@@ -383,10 +385,10 @@ const PluginsPage: React.FC = () => {
       <div className="mb-6">
         <h1 className="font-display font-bold text-2xl text-foreground flex items-center gap-2">
           <Plug className="w-6 h-6 text-primary" />
-          Plugins & Connections
+          Connections
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Invite tools and services into your office. Each plugin gives your agents new abilities.
+          Connect AI providers to give your agents access to models. More integrations coming soon.
         </p>
       </div>
 
@@ -549,11 +551,113 @@ const PluginsPage: React.FC = () => {
         )}
       </div>
 
+      {/* Local Models Section */}
+      <div className="mt-10 mb-8">
+        <h2 className="font-display font-semibold text-lg text-foreground mb-1 flex items-center gap-2">
+          <HardDrive className="w-5 h-5 text-emerald-600" /> Local Models
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Run AI models on your own machine. Fully private, no API key needed, works offline.
+        </p>
+
+        {/* Ollama status */}
+        <div className="p-4 bg-card border border-border rounded-xl mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-emerald-600" />
+              <p className="text-sm font-semibold text-foreground">Ollama</p>
+            </div>
+            {localModelsData?.ollamaRunning ? (
+              <span className="px-2.5 py-1 bg-status-working/15 text-status-working text-[10px] font-semibold rounded-full">
+                Running · {localModelsData.models.length} model{localModelsData.models.length !== 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 bg-muted text-muted-foreground text-[10px] font-semibold rounded-full">Not detected</span>
+            )}
+          </div>
+
+          {localModelsData?.ollamaRunning && localModelsData.models.length > 0 ? (
+            <div className="space-y-1.5 mb-3">
+              {localModelsData.models.map(m => (
+                <div key={m.id} className="flex items-center justify-between p-2.5 bg-muted rounded-lg">
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">{m.name}<span className="text-muted-foreground font-normal">:{m.tag}</span></p>
+                    <p className="text-[10px] text-muted-foreground">{m.sizeGB}GB{m.parameterSize ? ` · ${m.parameterSize}` : ''}{m.family ? ` · ${m.family}` : ''}</p>
+                  </div>
+                  <span className="text-[10px] text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full font-medium">Ready</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="p-2.5 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+            <p className="text-[10px] text-amber-700">
+              <span className="font-semibold">Note:</span> Hermes-agent uses cloud providers for full agent workflows (tool-calling, multi-step tasks).
+              Local Ollama models appear in the model selector but may not support all agent features.
+              For best results, use cloud models (Anthropic, OpenAI, or OpenRouter) for agent runs.
+            </p>
+          </div>
+
+          {!localModelsData?.ollamaRunning && (
+            <p className="text-xs text-muted-foreground mb-3 mt-3">Install Ollama to run models locally on your machine.</p>
+          )}
+        </div>
+
+        {/* Setup guide */}
+        <div className="p-4 bg-card border border-border rounded-xl space-y-4">
+          <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <Download className="w-3.5 h-3.5" /> How to set up local models
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+              <div>
+                <p className="text-xs font-medium text-foreground">Install Ollama</p>
+                <p className="text-[10px] text-muted-foreground mb-1.5">Free and open source. Works on Mac, Linux, and Windows.</p>
+                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5">
+                  ollama.com <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+              <div>
+                <p className="text-xs font-medium text-foreground">Download a model</p>
+                <p className="text-[10px] text-muted-foreground mb-1.5">Open your terminal and run one of these:</p>
+                <div className="space-y-1">
+                  {[
+                    { cmd: 'ollama pull hermes3', note: 'Recommended — 4.7GB, good for most tasks' },
+                    { cmd: 'ollama pull gemma3:27b', note: 'Strong reasoning — 17GB, needs 32GB RAM' },
+                    { cmd: 'ollama pull llama4:scout', note: 'Latest Meta model — 67GB, needs 64GB+ RAM' },
+                    { cmd: 'ollama pull qwen3-coder:30b', note: 'Great for code — 18GB, needs 32GB RAM' },
+                  ].map(({ cmd, note }) => (
+                    <div key={cmd} className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                      <code className="text-[10px] font-mono text-foreground flex-1">{cmd}</code>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{note}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+              <div>
+                <p className="text-xs font-medium text-foreground">Select it in an agent</p>
+                <p className="text-[10px] text-muted-foreground">Open any agent profile, click the model selector, and choose from "Local (Ollama)". No API key needed.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Footer hint */}
       <div className="mt-8 p-3 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground">
-          <span className="font-semibold">How plugins work:</span> Each plugin gives agents specific abilities.
-          You control exactly which agents can use which plugins. API keys are stored securely and never exposed in outputs.
+          <span className="font-semibold">How connections work:</span> Each connection gives agents specific abilities.
+          You control exactly which agents can use which connections. API keys are stored securely and never exposed in outputs.
         </p>
       </div>
     </div>

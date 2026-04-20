@@ -4,6 +4,7 @@
  * First-time users (no `homeroom-onboarded` flag) → /onboarding
  * Returning users with backend down               → /setup?issue=service&returning=true
  * Returning users with hermes not installed       → /setup?issue=runtime&returning=true
+ * Returning users with no credentials             → /security-setup
  * Healthy returning users                         → nothing (app runs normally)
  */
 
@@ -42,11 +43,23 @@ export function useBackendSync() {
 
       if (!health.gatewayReachable) {
         navigate(`${SETUP_ROUTE}?issue=runtime&returning=true`, { replace: true });
+        return;
+      }
+
+      // Backend is healthy — check if any credentials are configured
+      try {
+        const creds = await backendApi.listCredentials();
+        if (creds.length === 0) {
+          // No API keys configured — guide user to set one up
+          navigate('/security-setup', { replace: true });
+          return;
+        }
+      } catch {
+        // Credential check failed — continue anyway, user can set up later
       }
     }
 
     check();
-    const interval = setInterval(check, 30_000);
-    return () => clearInterval(interval);
+    // No ongoing polling — SSE handles connection status, useRuntimeHealth handles periodic health.
   }, [location.pathname]);
 }

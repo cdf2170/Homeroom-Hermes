@@ -8,7 +8,7 @@
  * States:
  *   'checking'    — initial probe in progress
  *   'connected'   — backend replied OK
- *   'disconnected'— backend unreachable (demo mode)
+ *   'disconnected'— backend unreachable
  */
 
 import { useSyncExternalStore } from 'react';
@@ -32,6 +32,12 @@ export function getConnectionStatus(): ConnectionStatus {
   return status;
 }
 
+export function setConnectionStatus(s: ConnectionStatus) {
+  if (status === s) return;
+  status = s;
+  emit();
+}
+
 export function useConnectionStatus(): ConnectionStatus {
   return useSyncExternalStore(subscribe, getConnectionStatus);
 }
@@ -39,7 +45,6 @@ export function useConnectionStatus(): ConnectionStatus {
 /** Run once on app boot. Probes the backend and updates status. */
 export async function probeBackend(): Promise<boolean> {
   const reachable = await backendApi.ping();
-  status = reachable ? 'connected' : 'disconnected';
-  emit();
+  setConnectionStatus(reachable ? 'connected' : 'disconnected');
   return reachable;
 }

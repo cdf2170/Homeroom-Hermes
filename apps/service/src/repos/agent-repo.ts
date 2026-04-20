@@ -41,7 +41,8 @@ function rowToProfile(row: AgentRow): AgentProfile {
     modelRef: row.modelRef ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-  };
+    ...((row as any).appearance != null ? { appearance: (row as any).appearance } : {}),
+  } as AgentProfile;
 }
 
 export function createAgentRepo(db: Db) {
@@ -56,7 +57,7 @@ export function createAgentRepo(db: Db) {
       return rowToProfile(row);
     },
 
-    insert(data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">): AgentProfile {
+    insert(data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt"> & { appearance?: string | null }): AgentProfile {
       const id = newId();
       const ts = now();
       db.insert(agents)
@@ -69,6 +70,7 @@ export function createAgentRepo(db: Db) {
           scheduleSummary: data.scheduleSummary ?? null,
           permissionProfileId: data.permissionProfileId ?? null,
           appearanceId: data.appearanceId ?? null,
+          appearance: data.appearance ?? null,
           createdAt: ts,
           updatedAt: ts,
         })

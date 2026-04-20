@@ -1,21 +1,20 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Building2, Users, Activity, Settings, Inbox, CheckSquare } from 'lucide-react';
+import { Home, Building2, Users, Activity, Settings, CheckSquare, Plug } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getPendingCount } from '@/store/approvalStore';
 
 const NAV_ITEMS = [
-  { to: '/', icon: Building2, label: 'The Office' },
-  { to: '/approvals', icon: Inbox, label: 'Your Desk' },
+  { to: '/', icon: Home, label: 'Home' },
+  { to: '/office', icon: Building2, label: 'The Office' },
   { to: '/done-work', icon: CheckSquare, label: 'Done Work' },
   { to: '/agents', icon: Users, label: 'Agents' },
   { to: '/activity', icon: Activity, label: 'Activity & Trust' },
+  { to: '/connections', icon: Plug, label: 'Connections' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 const AppSidebar: React.FC = () => {
   const location = useLocation();
-  const pendingCount = getPendingCount();
 
   return (
     <div className="w-14 bg-sidebar flex flex-col items-center py-4 border-r border-sidebar-border shrink-0">
@@ -39,11 +38,6 @@ const AppSidebar: React.FC = () => {
                   }`}
                 >
                   <Icon className="w-5 h-5" />
-                  {to === '/approvals' && pendingCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
-                      {pendingCount > 9 ? '9+' : pendingCount}
-                    </span>
-                  )}
                 </NavLink>
               </TooltipTrigger>
               <TooltipContent side="right" className="text-xs">{label}</TooltipContent>

@@ -51,6 +51,20 @@ export function createScheduleRepo(db: Db) {
       return this.findByAgentId(agentId)!;
     },
 
+    /** Find all enabled schedules with a cron expression. */
+    findEnabled(): Schedule[] {
+      return db.select().from(schedules)
+        .where(eq(schedules.enabled, true))
+        .all()
+        .filter(row => row.backendExpression)
+        .map(rowToSchedule);
+    },
+
+    /** Update the nextRunAt timestamp for a schedule. */
+    updateNextRunAt(agentId: string, nextRunAt: string): void {
+      db.update(schedules).set({ nextRunAt, updatedAt: now() }).where(eq(schedules.agentId, agentId)).run();
+    },
+
     deleteByAgentId(agentId: string): void {
       db.delete(schedules).where(eq(schedules.agentId, agentId)).run();
     },

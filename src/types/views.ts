@@ -123,7 +123,7 @@ export interface RuntimeHealthView {
   gatewayReachable: boolean;
   localModelsAvailable: string[];
   cloudProvidersConnected: string[];
-  serviceMode: 'demo' | 'local' | 'always-on';
+  serviceMode: 'local' | 'always-on';
   warnings: string[];
   checkedAt: Date;
 }
@@ -132,7 +132,7 @@ export interface RuntimeHealthView {
 
 export interface SettingsView {
   displayName: string;
-  serviceMode: 'demo' | 'local' | 'always-on';
+  serviceMode: 'local' | 'always-on';
   defaultRuntime: RuntimeMode;
   requireApprovalByDefault: boolean;
   backgroundOffByDefault: boolean;

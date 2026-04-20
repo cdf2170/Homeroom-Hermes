@@ -12,7 +12,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "daemon:install": "./scripts/daemon.sh install",
+    "daemon:uninstall": "./scripts/daemon.sh uninstall",
+    "daemon:status": "./scripts/daemon.sh status",
+    "daemon:logs": "./scripts/daemon.sh logs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

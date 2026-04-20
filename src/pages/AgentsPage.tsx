@@ -5,10 +5,9 @@ import { STATE_LABELS } from '@/types/agent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import StateCoverage from '@/components/StateCoverage';
-import { useSimulatedLoading } from '@/hooks/useSimulatedLoading';
 import {
   Plus, Search, Cpu, Cloud, Play, AlertTriangle, Zap,
-  Clock, ArrowRight, Filter, Power, Users,
+  Clock, ArrowRight, Filter, Power, Users, Shield,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { updateAgent } from '@/store/agentStore';
@@ -47,14 +46,14 @@ const FILTERS: { id: FilterType; label: string }[] = [
 const AgentsPage: React.FC = () => {
   const query = useAgentsQuery();
   const storeAgents = useAgentsStore();
-  // Prefer live backend data; fall back to store (mock/demo) when backend is unreachable
+  // Prefer live backend data; fall back to local store when backend is unreachable
   const agents = query.data ?? storeAgents;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialFilter = searchParams.get('filter') as FilterType | null;
   const [filter, setFilter] = useState<FilterType>(initialFilter || 'all');
   const [search, setSearch] = useState('');
-  const loading = useSimulatedLoading(500);
+  const loading = query.isLoading;
 
   const filtered = useMemo(() => {
     let result = agents;
@@ -158,6 +157,11 @@ const AgentsPage: React.FC = () => {
                   ) : (
                     <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                       <Cloud className="w-3 h-3" /> Cloud
+                    </span>
+                  )}
+                  {!agent.hasPermissions && agent.enabled && (
+                    <span className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                      <Shield className="w-3 h-3" /> No rules
                     </span>
                   )}
                 </div>

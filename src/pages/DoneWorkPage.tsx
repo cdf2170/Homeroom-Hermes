@@ -1,71 +1,38 @@
-import React, { useState } from 'react';
-import { Inbox, CheckCircle2, RotateCcw, Clock, ChevronRight, MessageSquare } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useState, useMemo } from 'react';
+import { CheckSquare, CheckCircle2, XCircle, Clock, ChevronRight, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { useAgents } from '@/store/agentStore';
+import { useAllRuns, useAgents } from '@/hooks/api/useAgents';
+import type { BackendRun } from '@/services/backendApi';
 
-type ReviewStatus = 'awaiting' | 'approved' | 'sent-back';
+// ── Helpers ──
 
-interface WorkItem {
-  id: string;
-  agentId: string;
-  agentName: string;
-  agentColor: string;
-  taskTitle: string;
-  completedAt: Date;
-  output: string;
-  status: ReviewStatus;
-  feedback?: string;
-}
-
-const MOCK_ITEMS: WorkItem[] = [
-  {
-    id: '1',
-    agentId: 'scout',
-    agentName: 'Scout',
-    agentColor: '#4A6FA5',
-    taskTitle: 'Research top AI tools released in Q1 2026',
-    completedAt: new Date(Date.now() - 35 * 60 * 1000),
-    output: `Here's a summary of the top AI tools released in Q1 2026:\n\n1. **Gemini Ultra 2** — Google's multimodal flagship. Strongest at long-context document analysis and real-time video understanding.\n\n2. **Claude 4 Opus** — Anthropic's reasoning model. Significantly better at multi-step planning tasks and code generation.\n\n3. **Llama 4 Scout** — Meta's 17B MoE model. Runs locally on consumer hardware. Best-in-class for edge deployment.\n\n4. **Mistral Large 3** — Strong European alternative. GDPR-compliant by design, popular in enterprise settings.\n\nWant me to go deeper on any of these?`,
-    status: 'awaiting',
-  },
-  {
-    id: '2',
-    agentId: 'pepper',
-    agentName: 'Pepper',
-    agentColor: '#5B8C5A',
-    taskTitle: 'Organize this week\'s meeting notes into action items',
-    completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    output: `Action items from this week's meetings:\n\n**Monday standup:**\n- [ ] Deploy new auth middleware to staging — due Thursday\n- [ ] Review open PRs before EOD\n\n**Wednesday product sync:**\n- [ ] Finalize Q2 roadmap doc — owner: you\n- [ ] Schedule user interviews for next sprint\n- [ ] Update pricing page copy\n\n**Friday retro:**\n- [ ] Add automated test for the checkout flow\n- [ ] Move staging infra to new region`,
-    status: 'approved',
-  },
-  {
-    id: '3',
-    agentId: 'helper',
-    agentName: 'Research Helper',
-    agentColor: '#9B59B6',
-    taskTitle: 'Draft a cold email for outreach to indie hackers',
-    completedAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
-    output: `Subject: Quick question about your workflow\n\nHey [Name],\n\nI came across your project [Project] and loved what you're building.\n\nI'm working on Homeroom — a local control plane for AI agents. Think of it like a Sims-style office where your agents do real work.\n\nWould love to show you a demo. 15 minutes?\n\n— Odin`,
-    status: 'sent-back',
-    feedback: 'Too generic. Make it more specific to what they actually built. Reference something real.',
-  },
-];
-
-const timeAgo = (date: Date) => {
-  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+const timeAgo = (iso: string) => {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
 };
 
-const statusConfig: Record<ReviewStatus, { label: string; className: string }> = {
-  awaiting: { label: 'Awaiting Review', className: 'bg-status-waiting/15 text-status-waiting border-none' },
-  approved: { label: 'Approved', className: 'bg-status-working/15 text-status-working border-none' },
-  'sent-back': { label: 'Sent Back', className: 'bg-destructive/10 text-destructive border-none' },
+function colorFromString(s: string): string {
+  const palette = [
+    '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b',
+    '#10b981', '#3b82f6', '#ef4444', '#14b8a6',
+  ];
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = s.charCodeAt(i) + ((hash << 5) - hash);
+  return palette[Math.abs(hash) % palette.length];
+}
+
+const statusConfig: Record<string, { label: string; className: string; icon: React.ElementType }> = {
+  completed: { label: 'Completed', className: 'bg-status-working/15 text-status-working border-none', icon: CheckCircle2 },
+  failed:    { label: 'Failed',    className: 'bg-destructive/10 text-destructive border-none',       icon: XCircle },
+  running:   { label: 'Running',   className: 'bg-primary/10 text-primary border-none',               icon: Loader2 },
+  cancelled: { label: 'Cancelled', className: 'bg-muted text-muted-foreground border-none',           icon: Clock },
 };
+
+type FilterKey = 'all' | 'completed' | 'failed';
 
 const AgentInitials = ({ name, color }: { name: string; color: string }) => (
   <div
@@ -76,136 +43,106 @@ const AgentInitials = ({ name, color }: { name: string; color: string }) => (
   </div>
 );
 
-const ReviewPanel = ({
-  item,
-  onApprove,
-  onSendBack,
-  onClose,
-}: {
-  item: WorkItem;
-  onApprove: () => void;
-  onSendBack: (feedback: string) => void;
+// ── Detail Panel ──
+
+const RunDetailPanel = ({ run, agentName, agentColor, onClose }: {
+  run: BackendRun;
+  agentName: string;
+  agentColor: string;
   onClose: () => void;
 }) => {
-  const [feedback, setFeedback] = useState('');
+  const cfg = statusConfig[run.status] ?? statusConfig.completed;
 
   return (
     <div className="flex flex-col h-full border-l border-border bg-background">
-      {/* Header */}
       <div className="p-5 border-b border-border">
         <div className="flex items-center gap-3 mb-1">
-          <AgentInitials name={item.agentName} color={item.agentColor} />
+          <AgentInitials name={agentName} color={agentColor} />
           <div>
-            <p className="font-semibold text-sm text-foreground">{item.agentName}</p>
-            <p className="text-xs text-muted-foreground">{item.taskTitle}</p>
+            <p className="font-semibold text-sm text-foreground">{agentName}</p>
+            <p className="text-xs text-muted-foreground truncate">{run.inputSummary || '(no input)'}</p>
           </div>
           <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
         </div>
         <div className="flex items-center gap-2 mt-3">
-          <Badge className={statusConfig[item.status].className}>{statusConfig[item.status].label}</Badge>
+          <Badge className={cfg.className}>{cfg.label}</Badge>
           <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Clock className="w-3 h-3" /> {timeAgo(item.completedAt)}
+            <Clock className="w-3 h-3" /> {run.finishedAt ? timeAgo(run.finishedAt) : 'In progress'}
           </span>
         </div>
       </div>
 
-      {/* Output */}
       <div className="flex-1 overflow-y-auto p-5">
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-3">Output</p>
-        <div className="bg-muted rounded-xl p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed font-mono text-xs">
-          {item.output}
-        </div>
+        {run.outputSummary && (
+          <>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-3">Output</p>
+            <div className="bg-muted rounded-xl p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed font-mono text-xs">
+              {run.outputSummary}
+            </div>
+          </>
+        )}
 
-        {item.feedback && (
+        {run.errorSummary && (
           <div className="mt-4 p-3 bg-destructive/5 border border-destructive/20 rounded-xl">
-            <p className="text-[10px] font-semibold text-destructive uppercase tracking-wide mb-1">Previous feedback</p>
-            <p className="text-xs text-foreground">{item.feedback}</p>
+            <p className="text-[10px] font-semibold text-destructive uppercase tracking-wide mb-1">Error</p>
+            <p className="text-xs text-foreground font-mono whitespace-pre-wrap">{run.errorSummary}</p>
           </div>
         )}
-      </div>
 
-      {/* Review actions */}
-      {item.status === 'awaiting' && (
-        <div className="p-5 border-t border-border space-y-3">
-          <div>
-            <p className="text-xs font-semibold text-foreground mb-1.5 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5" /> Your feedback
-            </p>
-            <Textarea
-              value={feedback}
-              onChange={e => setFeedback(e.target.value)}
-              placeholder="What worked well, or what should they change?"
-              className="text-sm resize-none h-20"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={onApprove}
-              className="flex-1 bg-status-working hover:bg-status-working/90 text-white"
-            >
-              <CheckCircle2 className="w-4 h-4" /> Approve
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => feedback.trim() && onSendBack(feedback)}
-              disabled={!feedback.trim()}
-              className="flex-1"
-            >
-              <RotateCcw className="w-4 h-4" /> Send Back
-            </Button>
-          </div>
-          {!feedback.trim() && (
-            <p className="text-[10px] text-muted-foreground text-center">Add feedback to send back for rework</p>
-          )}
-        </div>
-      )}
+        {!run.outputSummary && !run.errorSummary && (
+          <p className="text-sm text-muted-foreground text-center py-8">No output yet.</p>
+        )}
+      </div>
     </div>
   );
 };
 
+// ── Page ──
+
 const DoneWorkPage: React.FC = () => {
-  const [filter, setFilter] = useState<ReviewStatus | 'all'>('awaiting');
-  const [items, setItems] = useState<WorkItem[]>(MOCK_ITEMS);
+  const { data: runs = [], isLoading } = useAllRuns(200);
+  const { data: agents = [] } = useAgents();
+  const [filter, setFilter] = useState<FilterKey>('all');
   const [selected, setSelected] = useState<string | null>(null);
 
-  const filtered = filter === 'all' ? items : items.filter(i => i.status === filter);
-  const awaiting = items.filter(i => i.status === 'awaiting').length;
-  const approved = items.filter(i => i.status === 'approved').length;
-  const sentBack = items.filter(i => i.status === 'sent-back').length;
+  // Build agent lookup
+  const agentMap = useMemo(() => {
+    const map = new Map<string, { name: string; color: string }>();
+    agents.forEach(a => map.set(a.id, { name: a.name, color: a.outfitColor ?? colorFromString(a.id) }));
+    return map;
+  }, [agents]);
 
-  const selectedItem = items.find(i => i.id === selected) ?? null;
+  // Filter to settled runs (completed + failed)
+  const settledRuns = useMemo(() => {
+    let result = runs.filter(r => r.status === 'completed' || r.status === 'failed');
+    if (filter === 'completed') result = result.filter(r => r.status === 'completed');
+    if (filter === 'failed') result = result.filter(r => r.status === 'failed');
+    return result;
+  }, [runs, filter]);
 
-  const handleApprove = (id: string) => {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'approved' } : i));
-    setSelected(null);
-  };
+  const completedCount = runs.filter(r => r.status === 'completed').length;
+  const failedCount = runs.filter(r => r.status === 'failed').length;
+  const selectedRun = settledRuns.find(r => r.id === selected) ?? null;
 
-  const handleSendBack = (id: string, feedback: string) => {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'sent-back', feedback } : i));
-    setSelected(null);
-  };
-
-  const FILTERS: { key: ReviewStatus | 'all'; label: string; count?: number }[] = [
-    { key: 'awaiting', label: 'Awaiting Review', count: awaiting },
-    { key: 'approved', label: 'Approved', count: approved },
-    { key: 'sent-back', label: 'Sent Back', count: sentBack },
+  const FILTERS: { key: FilterKey; label: string; count?: number }[] = [
+    { key: 'all', label: 'All', count: completedCount + failedCount },
+    { key: 'completed', label: 'Completed', count: completedCount },
+    { key: 'failed', label: 'Failed', count: failedCount },
   ];
 
   return (
     <div className="h-full flex">
       {/* Left panel */}
-      <div className={`flex flex-col ${selectedItem ? 'w-1/2' : 'w-full'} transition-all`}>
-        {/* Header */}
+      <div className={`flex flex-col ${selectedRun ? 'w-1/2' : 'w-full'} transition-all`}>
         <div className="p-6 pb-0">
           <div className="flex items-center gap-2 mb-1">
-            <Inbox className="w-5 h-5 text-primary" />
+            <CheckSquare className="w-5 h-5 text-primary" />
             <h1 className="font-display font-bold text-2xl text-foreground">Done Work</h1>
           </div>
           <p className="text-sm text-muted-foreground mb-5">
-            Your team's completed tasks, waiting for your verdict.
+            Completed agent runs and their output.
           </p>
 
-          {/* Filter tabs */}
           <div className="flex gap-1 border-b border-border">
             {FILTERS.map(f => (
               <button
@@ -219,9 +156,7 @@ const DoneWorkPage: React.FC = () => {
               >
                 {f.label}
                 {f.count !== undefined && f.count > 0 && (
-                  <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    f.key === 'awaiting' ? 'bg-status-waiting/20 text-status-waiting' : 'bg-muted text-muted-foreground'
-                  }`}>
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground">
                     {f.count}
                   </span>
                 )}
@@ -230,52 +165,73 @@ const DoneWorkPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Items */}
         <div className="flex-1 overflow-y-auto p-6 pt-4 space-y-3">
-          {filtered.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : settledRuns.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-center">
               <CheckCircle2 className="w-10 h-10 text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground font-medium">All clear</p>
-              <p className="text-xs text-muted-foreground">Nothing on your desk right now.</p>
+              <p className="text-sm text-muted-foreground font-medium">No completed work yet</p>
+              <p className="text-xs text-muted-foreground">Run an agent to see results here.</p>
             </div>
           ) : (
-            filtered.map(item => (
-              <div
-                key={item.id}
-                onClick={() => setSelected(item.id === selected ? null : item.id)}
-                className={`p-4 bg-card border rounded-xl cursor-pointer transition-all hover:shadow-sm ${
-                  selected === item.id ? 'border-primary/50 shadow-sm' : 'border-border'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <AgentInitials name={item.agentName} color={item.agentColor} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-sm font-semibold text-foreground truncate">{item.taskTitle}</p>
+            settledRuns.map(run => {
+              const agent = agentMap.get(run.agentId);
+              const name = agent?.name ?? 'Unknown';
+              const color = agent?.color ?? '#888';
+              const cfg = statusConfig[run.status] ?? statusConfig.completed;
+
+              return (
+                <div
+                  key={run.id}
+                  onClick={() => setSelected(run.id === selected ? null : run.id)}
+                  className={`p-4 bg-card border rounded-xl cursor-pointer transition-all hover:shadow-sm ${
+                    selected === run.id ? 'border-primary/50 shadow-sm' : 'border-border'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <AgentInitials name={name} color={color} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {run.inputSummary || '(no input)'}
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {name} · {run.finishedAt ? timeAgo(run.finishedAt) : 'In progress'}
+                      </p>
+                      {run.outputSummary && (
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                          {run.outputSummary.slice(0, 120)}{run.outputSummary.length > 120 ? '...' : ''}
+                        </p>
+                      )}
+                      {run.errorSummary && (
+                        <p className="text-xs text-destructive leading-relaxed line-clamp-2">
+                          {run.errorSummary.slice(0, 120)}{run.errorSummary.length > 120 ? '...' : ''}
+                        </p>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mb-2">{item.agentName} · {timeAgo(item.completedAt)}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{item.output.slice(0, 120)}…</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <Badge className={statusConfig[item.status].className + ' text-[10px]'}>
-                      {statusConfig[item.status].label}
-                    </Badge>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/40" />
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <Badge className={cfg.className + ' text-[10px]'}>{cfg.label}</Badge>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* Right panel — review */}
-      {selectedItem && (
+      {/* Right panel — detail */}
+      {selectedRun && (
         <div className="w-1/2 flex flex-col">
-          <ReviewPanel
-            item={selectedItem}
-            onApprove={() => handleApprove(selectedItem.id)}
-            onSendBack={(fb) => handleSendBack(selectedItem.id, fb)}
+          <RunDetailPanel
+            run={selectedRun}
+            agentName={agentMap.get(selectedRun.agentId)?.name ?? 'Unknown'}
+            agentColor={agentMap.get(selectedRun.agentId)?.color ?? '#888'}
             onClose={() => setSelected(null)}
           />
         </div>

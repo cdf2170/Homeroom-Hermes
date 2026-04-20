@@ -414,7 +414,7 @@ export function createVaultService(vaultRoot: string) {
       syncMap.delete(agentId);
     },
 
-    /** Compute current hash for an agent without writing — used to detect drift. */
+    /** Compute expected hash from current backend state (without writing). */
     computeHash(
       profile: AgentProfile,
       memoryItems: MemoryItem[],
@@ -433,6 +433,80 @@ export function createVaultService(vaultRoot: string) {
         renderRunsMd(profile, runs),
       ].join("\n");
       return hash(content);
+    },
+
+    /**
+     * Read the actual on-disk vault files for an agent and compute their hash.
+     * Returns null if the vault folder or any expected file is missing.
+     * This enables true drift detection: compare diskHash vs expectedHash
+     * to see if someone edited the files manually.
+     */
+    readDiskHash(agentName: string, agentId: string): string | null {
+      const slug = slugify(agentName) || agentId;
+      const dir = agentDir(slug);
+      const fileNames = [
+        "AGENT.md", "PROFILE.md", "MEMORY.md", "RULES.md",
+        "SCHEDULE.md", "TOOLS.md", "RUNS.md",
+      ];
+      try {
+        const contents: string[] = [];
+        for (const name of fileNames) {
+          const filePath = join(dir, name);
+          if (!existsSync(filePath)) return null; // missing file = not synced
+          contents.push(readFileSync(filePath, "utf8"));
+        }
+        return hash(contents.join("\n"));
+      } catch {
+        return null;
+      }
+    },
+
+    /**
+     * Full drift report for an agent. Compares three states:
+     * - lastWrittenHash: hash recorded when we last wrote the files
+     * - expectedHash: hash of what the backend would generate right now
+     * - diskHash: hash of what is actually on disk
+     *
+     * Status interpretation:
+     * - "in-sync": all three match — files are up to date
+     * - "backend-ahead": backend state changed but files haven't been rewritten yet
+     * - "disk-modified": on-disk files were manually edited (disk != lastWritten)
+     * - "not-written": vault folder doesn't exist for this agent yet
+     * - "diverged": both backend state and disk files changed independently
+     */
+    getDriftStatus(
+      agentName: string,
+      agentId: string,
+      expectedHash: string,
+    ): {
+      status: "in-sync" | "backend-ahead" | "disk-modified" | "not-written" | "diverged";
+      lastWrittenHash: string | null;
+      expectedHash: string;
+      diskHash: string | null;
+    } {
+      const rec = syncMap.get(agentId);
+      const lastWrittenHash = rec?.hash ?? null;
+      const diskHash = this.readDiskHash(agentName, agentId);
+
+      if (diskHash === null) {
+        return { status: "not-written", lastWrittenHash, expectedHash, diskHash };
+      }
+
+      const backendChanged = lastWrittenHash !== expectedHash;
+      const diskChanged = diskHash !== lastWrittenHash;
+
+      let status: "in-sync" | "backend-ahead" | "disk-modified" | "diverged";
+      if (!backendChanged && !diskChanged) {
+        status = "in-sync";
+      } else if (backendChanged && !diskChanged) {
+        status = "backend-ahead";
+      } else if (!backendChanged && diskChanged) {
+        status = "disk-modified";
+      } else {
+        status = "diverged";
+      }
+
+      return { status, lastWrittenHash, expectedHash, diskHash };
     },
   };
 }

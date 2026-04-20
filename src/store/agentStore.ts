@@ -20,11 +20,10 @@ function subscribe(listener: () => void) {
 }
 
 // Fields that the backend UpdateAgentRequest accepts.
-// Appearance, workspacePath, obsidianVaultPath, etc. are UI-only and skipped.
 const BACKEND_FIELDS = new Set([
   'name', 'purpose', 'role', 'instructions',
   'enabled', 'backgroundEnabled', 'runtimeMode', 'smartnessLevel',
-  'sceneRoomId',
+  'sceneRoomId', 'appearance',
   'audienceNotes', 'environmentNotes', 'memoryNotes',
   'checkInFrequency', 'escalationBehavior', 'taskStyle',
   'notifyOnComplete', 'notifyOnError',
@@ -48,6 +47,8 @@ function toBackendUpdates(updates: Partial<Agent>): Record<string, unknown> {
     if (!BACKEND_FIELDS.has(backendKey)) continue;
     if (backendKey === 'sceneRoomId' && typeof v === 'string') {
       out[backendKey] = ZONE_TO_ROOM[v] ?? v;
+    } else if (backendKey === 'appearance' && typeof v === 'object') {
+      out[backendKey] = JSON.stringify(v);
     } else {
       out[backendKey] = v;
     }

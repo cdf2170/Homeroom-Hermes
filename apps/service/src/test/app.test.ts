@@ -24,7 +24,7 @@ describe("GET /api/runtime/health", () => {
 });
 
 describe("GET /api/runtime/models", () => {
-  it("returns mock models", async () => {
+  it("returns available models", async () => {
     const res = await app.inject({ method: "GET", url: "/api/runtime/models" });
     expect(res.statusCode).toBe(200);
     const body = res.json();

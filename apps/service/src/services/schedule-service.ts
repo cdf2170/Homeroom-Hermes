@@ -2,6 +2,7 @@ import type { ScheduleRepo } from "../repos/schedule-repo.js";
 import type { AgentRepo } from "../repos/agent-repo.js";
 import type { UpdateScheduleRequest } from "@homeroom/contracts";
 import type { Schedule } from "@homeroom/schemas";
+import type { SchedulerService } from "./scheduler-service.js";
 
 const PRESET_CRON: Record<string, string | null> = {
   manual_only: null,
@@ -23,7 +24,11 @@ const PRESET_PLAIN: Record<string, string> = {
   custom: "Custom schedule",
 };
 
-export function createScheduleService(scheduleRepo: ScheduleRepo, agentRepo: AgentRepo) {
+export function createScheduleService(
+  scheduleRepo: ScheduleRepo,
+  agentRepo: AgentRepo,
+  scheduler?: SchedulerService,
+) {
   return {
     getForAgent(agentId: string): Schedule | null {
       agentRepo.findById(agentId); // throws if not found
@@ -32,20 +37,34 @@ export function createScheduleService(scheduleRepo: ScheduleRepo, agentRepo: Age
 
     upsert(agentId: string, req: UpdateScheduleRequest): Schedule {
       agentRepo.findById(agentId); // throws if not found
-      const cron = req.preset === "custom" ? req.customCronExpression : PRESET_CRON[req.preset];
+      const cronExpr = req.preset === "custom" ? req.customCronExpression : PRESET_CRON[req.preset];
       const plain = PRESET_PLAIN[req.preset] ?? "Custom";
+
+      // Compute real nextRunAt
+      const nextRunAt = cronExpr && req.enabled && scheduler
+        ? scheduler.computeNextRunAt(cronExpr)
+        : null;
 
       const schedule = scheduleRepo.upsert(agentId, {
         enabled: req.enabled,
         preset: req.preset,
         plainEnglish: plain,
-        backendExpression: cron ?? null,
+        backendExpression: cronExpr ?? null,
         timezone: req.timezone,
-        nextRunAt: null, // TODO(phase-3): derive from adapter scheduler
+        nextRunAt,
       });
 
       // Sync the summary back onto the agent row
       agentRepo.update(agentId, { scheduleSummary: schedule.enabled ? plain : null });
+
+      // Register/unregister cron job
+      if (scheduler) {
+        if (schedule.enabled && cronExpr) {
+          scheduler.register(agentId, cronExpr, plain);
+        } else {
+          scheduler.unregister(agentId);
+        }
+      }
 
       return schedule;
     },

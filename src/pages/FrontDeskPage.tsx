@@ -113,7 +113,7 @@ const FrontDeskPage: React.FC = () => {
         <StatCard icon={Users} label="Agents" value={summaries.length} tint="bg-primary/8 text-primary" onClick={() => navigate('/agents')} />
         <StatCard icon={Zap} label="Active" value={active.length} tint="bg-emerald-500/8 text-emerald-600" onClick={() => navigate('/agents?filter=active')} />
         <StatCard icon={AlertTriangle} label="Attention" value={attention.length} tint={attention.length > 0 ? 'bg-amber-500/8 text-amber-600' : 'bg-muted text-muted-foreground'} onClick={() => navigate('/agents?filter=attention')} />
-        <StatCard icon={Shield} label="Issues" value={reviewFindings.length} tint={reviewFindings.length > 0 ? 'bg-red-500/8 text-red-600' : 'bg-muted text-muted-foreground'} onClick={() => navigate('/activity')} />
+        <StatCard icon={Shield} label={reviewFindings.length > 0 ? 'Issues' : 'Trust'} value={reviewFindings.length > 0 ? reviewFindings.length : 'OK'} tint={reviewFindings.length > 0 ? 'bg-red-500/8 text-red-600' : 'bg-emerald-500/8 text-emerald-600'} onClick={() => navigate('/activity')} />
       </div>
 
       {/* Suggested actions */}

@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Cpu, Cloud, Key, Eye, EyeOff, Trash2, Check, ExternalLink, Info, Plus, Loader2, RefreshCw } from 'lucide-react';
+import { Shield, Cpu, Cloud, Key, Eye, EyeOff, Trash2, Check, ExternalLink, Info, Plus, Loader2, RefreshCw, Lock, Play, Copy } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
 import { useModelConfig, setProviderKey, removeProviderKey } from '@/store/modelConfigStore';
@@ -220,6 +220,21 @@ const SettingsPage: React.FC = () => {
       </div>
 
       <div className="space-y-8">
+        {/* Security notice */}
+        <section className="p-4 bg-muted/50 border border-border rounded-xl">
+          <div className="flex items-start gap-3">
+            <Lock className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Local-only, single-user</p>
+              <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                This backend has no authentication. Anyone who can reach <code className="text-[11px] bg-muted px-1 rounded">localhost:5174</code> can
+                manage agents, trigger runs, and read/write API credentials. This is by design for a local tool —
+                do not expose it to a network or run it on a shared machine without understanding the risk.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* How agents run */}
         <section>
           <h2 className="font-display font-semibold text-lg text-foreground mb-1 flex items-center gap-2">
@@ -265,6 +280,63 @@ const SettingsPage: React.FC = () => {
               <div className="flex items-center gap-2 shrink-0">
                 <Button size="sm" variant="outline" className="text-xs h-8"><Cpu className="w-3 h-3" /> Local</Button>
                 <Button size="sm" variant="ghost" className="text-xs h-8"><Cloud className="w-3 h-3" /> Cloud</Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <Separator />
+
+        {/* Background Service */}
+        <section>
+          <h2 className="font-display font-semibold text-lg text-foreground mb-1 flex items-center gap-2">
+            <Play className="w-4 h-4" /> Background Service
+          </h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Run Homeroom as a background service so agents keep working even when you close the terminal.
+            Scheduled runs, vault sync, and the SSE event stream all require the service to be active.
+          </p>
+          <div className="space-y-3">
+            <div className="p-4 bg-muted rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Service status</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {connectionStatus === 'connected' ? 'The backend is running and reachable.' : 'The backend is not reachable.'}
+                  </p>
+                </div>
+                {connectionStatus === 'connected' ? (
+                  <span className="px-3 py-1 bg-status-working/15 text-status-working text-xs font-medium rounded-full">Running</span>
+                ) : (
+                  <span className="px-3 py-1 bg-destructive/15 text-destructive text-xs font-medium rounded-full">Stopped</span>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 bg-card border border-border rounded-xl space-y-3">
+              <p className="text-xs font-semibold text-foreground">Install as background service (macOS)</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Run this command once to install Homeroom as a launchd service. It will start automatically
+                on login and restart if it crashes.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-[11px] font-mono bg-muted px-3 py-2 rounded-lg text-foreground select-all">
+                  pnpm daemon:install
+                </code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText('pnpm daemon:install');
+                    toast.success('Copied to clipboard');
+                  }}
+                >
+                  <Copy className="w-3 h-3" /> Copy
+                </Button>
+              </div>
+              <div className="text-[10px] text-muted-foreground space-y-1">
+                <p>Other commands: <code className="bg-muted px-1 rounded">pnpm daemon:status</code> · <code className="bg-muted px-1 rounded">pnpm daemon:uninstall</code> · <code className="bg-muted px-1 rounded">pnpm daemon:logs</code></p>
               </div>
             </div>
           </div>

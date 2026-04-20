@@ -28,6 +28,7 @@ import { createRunService } from "./services/run-service.js";
 import { createAgentService } from "./services/agent-service.js";
 import { createFrontdeskService } from "./services/frontdesk-service.js";
 import { createVaultService } from "./services/vault-service.js";
+import { createSchedulerService } from "./services/scheduler-service.js";
 
 // Routes
 import { buildRuntimeRoutes } from "./routes/runtime.js";
@@ -50,10 +51,30 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
     },
   });
 
-  // Plugins
-  const allowRemoteOrigins = process.env["ALLOW_REMOTE_ORIGINS"] === "true";
+  // ── CORS ──────────────────────────────────────────────────────────────────
+  // Default: localhost only.
+  // To allow preview-host origins (*.lovable.app), you must set BOTH:
+  //   ALLOW_REMOTE_ORIGINS=true  AND  NODE_ENV=development
+  // This prevents accidental remote access in production-like setups.
+  const wantsRemote = process.env["ALLOW_REMOTE_ORIGINS"] === "true";
+  const isDev = process.env["NODE_ENV"] === "development";
+  const allowRemoteOrigins = wantsRemote && isDev;
+
+  if (wantsRemote && !isDev) {
+    app.log.warn(
+      "⚠️  ALLOW_REMOTE_ORIGINS=true is set but NODE_ENV is not 'development'. " +
+      "Remote origins will NOT be allowed. Set NODE_ENV=development to enable preview-host CORS.",
+    );
+  }
+  if (allowRemoteOrigins) {
+    app.log.warn(
+      "⚠️  ALLOW_REMOTE_ORIGINS is active. Preview hosts (*.lovable.app, *.lovableproject.com) " +
+      "can reach this backend. Any page on those hosts can manage agents, trigger runs, " +
+      "and read/write credentials. Do NOT enable this on shared or public networks.",
+    );
+  }
+
   await app.register(cors, {
-    // Default: localhost only. Set ALLOW_REMOTE_ORIGINS=true to open to preview hosts.
     origin: (origin, cb) => {
       if (
         !origin ||
@@ -92,8 +113,9 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   const trustService = createTrustService(trustRepo);
   const runtimeService = createRuntimeService(adapter);
   const settingsService = createSettingsService(settingsRepo);
-  const scheduleService = createScheduleService(scheduleRepo, agentRepo);
   const runService = createRunService(runRepo, agentRepo, runtimeProjectionRepo, adapter, auditService);
+  const schedulerService = createSchedulerService(scheduleRepo, agentRepo, runService);
+  const scheduleService = createScheduleService(scheduleRepo, agentRepo, schedulerService);
   const resolvedVaultRoot = vaultRoot ?? resolve(homedir(), ".homeroom", "vault");
   const vaultService = createVaultService(resolvedVaultRoot);
   const agentService = createAgentService(
@@ -150,8 +172,8 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   await app.register(buildCredentialsRoutes());
   await app.register(buildVaultRoutes(vaultService, agentService, memoryRepo, ruleRepo, permissionRepo, scheduleRepo, runRepo));
 
-  // Seed mock agents on first boot
+  // Import any pre-configured agents from the runtime adapter on first boot
   await agentService.importFromAdapter();
 
-  return { app, agentService, runtimeService, vaultService };
+  return { app, agentService, runtimeService, vaultService, schedulerService };
 }

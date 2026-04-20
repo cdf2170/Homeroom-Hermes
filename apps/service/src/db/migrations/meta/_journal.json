@@ -15,6 +15,13 @@
       "when": 1775958900000,
       "tag": "0001_add_model_ref",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1776163200000,
+      "tag": "0002_add_appearance",
+      "breakpoints": true
     }
   ]
 }

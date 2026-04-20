@@ -27,13 +27,13 @@ export function buildVaultRoutes(
       });
     });
 
-    // GET /api/vault/status/:id — per-agent vault status
+    // GET /api/vault/status/:id — per-agent vault status with real drift detection
     app.get<{ Params: { id: string } }>("/api/vault/status/:id", async (req, reply) => {
       const { id } = req.params;
-      agentService.getById(id); // throws 404 if not found
+      const agent = agentService.getById(id); // throws 404 if not found
       const status = vaultService.getStatus(id);
 
-      // Compute live hash to detect drift
+      // Compute what the backend would generate right now
       const detail = agentService.getDetail(id);
       const runs = runRepo.findByAgentId(id, 20).map(r => ({
         id: r.id,
@@ -45,7 +45,7 @@ export function buildVaultRoutes(
         outputSummary: r.outputSummary,
         errorSummary: r.errorSummary,
       }));
-      const liveHash = vaultService.computeHash(
+      const expectedHash = vaultService.computeHash(
         detail.profile,
         detail.memoryItems as any,
         detail.ruleItems as any,
@@ -54,11 +54,21 @@ export function buildVaultRoutes(
         runs,
       );
 
+      // Real on-disk drift detection
+      const drift = vaultService.getDriftStatus(
+        detail.profile.name,
+        id,
+        expectedHash,
+      );
+
       return reply.send({
         ...status,
         vaultRoot: vaultService.vaultRoot,
-        inSync: status.hash === liveHash,
-        liveHash,
+        expectedHash,
+        diskHash: drift.diskHash,
+        driftStatus: drift.status,
+        // Legacy compat: inSync is true only when everything matches
+        inSync: drift.status === "in-sync",
       });
     });
 

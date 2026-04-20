@@ -144,10 +144,12 @@ const ActivityTrustPage: React.FC = () => {
           <p className="text-sm text-muted-foreground">Run history, risk analysis, and agent permissions</p>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-          allGood ? 'bg-status-working/10 text-status-working' : 'bg-status-waiting/10 text-status-waiting'
+          warnings.length === 0 ? 'bg-status-working/10 text-status-working'
+          : warnings.length <= 3 ? 'bg-status-waiting/10 text-status-waiting'
+          : 'bg-destructive/10 text-destructive'
         }`}>
-          {allGood ? <ShieldCheck className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-          {allGood ? 'All clear' : `${warnings.length} to review`}
+          {warnings.length === 0 ? <ShieldCheck className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+          {warnings.length === 0 ? 'All Clear' : warnings.length <= 3 ? `Review Needed — ${warnings.length} item${warnings.length !== 1 ? 's' : ''}` : `Needs Attention — ${warnings.length} issues`}
         </div>
       </div>
 
@@ -302,7 +304,7 @@ const ActivityTrustPage: React.FC = () => {
           <>
             {/* Overview cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-              <OverviewCard icon={Shield} label="Overall Status" value={allGood ? 'Safe' : 'Review'} accent={allGood ? 'ok' : 'warning'} />
+              <OverviewCard icon={Shield} label="Overall Status" value={warnings.length === 0 ? 'All Clear' : warnings.length <= 3 ? 'Review' : 'At Risk'} accent={warnings.length === 0 ? 'ok' : 'warning'} />
               <OverviewCard icon={Cpu} label="Local Agents" value={localAgents.length} />
               <OverviewCard icon={Cloud} label="Cloud Agents" value={cloudAgents.length} />
               <OverviewCard icon={RefreshCw} label="Background" value={bgAgents.length} />
@@ -336,10 +338,17 @@ const ActivityTrustPage: React.FC = () => {
 
             {/* Findings */}
             {allGood && infos.length === 0 && !trustSearch ? (
-              <div className="p-6 bg-status-working/5 border border-status-working/20 rounded-xl text-center mb-6">
-                <CheckCircle2 className="w-8 h-8 text-status-working mx-auto mb-2" />
-                <p className="text-sm font-medium text-foreground">Everything looks safe</p>
-                <p className="text-xs text-muted-foreground mt-1">All agents have appropriate permissions and boundaries.</p>
+              <div className="p-8 bg-status-working/5 border border-status-working/20 rounded-xl text-center mb-6">
+                <ShieldCheck className="w-10 h-10 text-status-working mx-auto mb-3" />
+                <p className="text-lg font-semibold text-foreground mb-1">All Clear</p>
+                <p className="text-sm text-muted-foreground mb-4">All agents have appropriate permissions and boundaries. Nothing needs your attention.</p>
+                <div className="flex flex-wrap justify-center gap-3 text-[11px] text-muted-foreground">
+                  <span>{queryAgents.length} agent{queryAgents.length !== 1 ? 's' : ''} reviewed</span>
+                  <span className="text-border">.</span>
+                  <span>{localAgents.length} local</span>
+                  <span className="text-border">.</span>
+                  <span>{cloudAgents.length} cloud</span>
+                </div>
               </div>
             ) : (
               <div className="space-y-2 mb-6">
@@ -381,8 +390,8 @@ const ActivityTrustPage: React.FC = () => {
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        <PermChip icon={a.runtimeMode === 'local' ? Cpu : Cloud} label={a.runtimeMode === 'local' ? 'Local' : 'Cloud'} />
-                        <PermChip icon={a.backgroundEnabled ? RefreshCw : Clock} label={a.backgroundEnabled ? 'Background' : 'Manual'} />
+                        <PermChip icon={a.runtimeMode === 'local' ? Cpu : Cloud} label={a.runtimeMode === 'local' ? 'Runs locally' : 'Uses cloud AI'} />
+                        <PermChip icon={a.backgroundEnabled ? RefreshCw : Clock} label={a.backgroundEnabled ? 'Runs in background' : 'Manual only'} />
                       </div>
                     </button>
                   ))}
@@ -456,27 +465,42 @@ const OverviewCard = ({ icon: Icon, label, value, accent }: { icon: React.Elemen
   </div>
 );
 
-const FindingCard = ({ finding, onNavigate }: { finding: Finding; onNavigate?: () => void }) => (
-  <div className={`p-3 rounded-xl border flex items-start gap-3 ${
-    finding.level === 'warning' || finding.level === 'risk'
-      ? 'bg-status-waiting/5 border-status-waiting/20'
-      : 'bg-card border-border'
-  }`}>
-    {finding.level === 'warning' || finding.level === 'risk'
-      ? <AlertTriangle className="w-4 h-4 text-status-waiting shrink-0 mt-0.5" />
-      : <Eye className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-    }
-    <div className="flex-1 min-w-0">
-      <p className="text-xs font-semibold text-foreground">{finding.title}</p>
-      <p className="text-[10px] text-muted-foreground mt-0.5">{finding.detail}</p>
+const FindingCard = ({ finding, onNavigate }: { finding: Finding; onNavigate?: () => void }) => {
+  const recommendation = finding.level === 'risk'
+    ? 'Action needed — this agent may be running without safety boundaries'
+    : finding.level === 'warning'
+    ? 'Review and update permissions'
+    : 'For your awareness';
+
+  return (
+    <div className={`p-3 rounded-xl border flex items-start gap-3 ${
+      finding.level === 'risk'
+        ? 'bg-destructive/5 border-destructive/20'
+        : finding.level === 'warning'
+        ? 'bg-status-waiting/5 border-status-waiting/20'
+        : 'bg-card border-border'
+    }`}>
+      {finding.level === 'risk'
+        ? <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+        : finding.level === 'warning'
+        ? <AlertTriangle className="w-4 h-4 text-status-waiting shrink-0 mt-0.5" />
+        : <Eye className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+      }
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-foreground">{finding.title}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">{finding.detail}</p>
+        <p className={`text-[10px] mt-1 font-medium ${
+          finding.level === 'risk' ? 'text-destructive' : finding.level === 'warning' ? 'text-status-waiting' : 'text-muted-foreground/70'
+        }`}>{recommendation}</p>
+      </div>
+      {onNavigate && (
+        <button onClick={onNavigate} className="text-xs text-primary hover:underline flex items-center gap-0.5 shrink-0">
+          {finding.level === 'risk' ? 'Fix now' : 'Review'} <ArrowRight className="w-3 h-3" />
+        </button>
+      )}
     </div>
-    {onNavigate && (
-      <button onClick={onNavigate} className="text-xs text-primary hover:underline flex items-center gap-0.5 shrink-0">
-        Review <ArrowRight className="w-3 h-3" />
-      </button>
-    )}
-  </div>
-);
+  );
+};
 
 const PermChip = ({ icon: Icon, label }: { icon: React.ElementType; label: string }) => (
   <span className="flex items-center gap-1 text-[9px] font-medium text-muted-foreground px-1.5 py-0.5 bg-muted rounded-full">
