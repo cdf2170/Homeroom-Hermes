@@ -154,10 +154,10 @@ pnpm daemon:uninstall
 - Disabled agents unregister automatically
 
 ### Security and enforcement
-- API keys encrypted at rest
+- API keys encrypted at rest, and `/api/settings` reads provider connection state from the encrypted store (the same source the adapter uses at dispatch). The two views cannot drift.
 - Backend locked to localhost by default
 - Per-agent `networkAccessMode: 'off'` is actually enforced via a dead HTTP proxy at subprocess spawn time
-- Approval-required runs are actually held in `awaiting_approval` until resolved
+- **Scheduled / background runs** can require approval before dispatch. When the agent's `requiresApprovalFor` list contains `schedule`, `background`, or `autonomous`, the run is held in `awaiting_approval` until the user resolves it. This is the only approval path the backend enforces today.
 
 ### Observability
 - Durable event log with monotonic sequence numbers
@@ -194,8 +194,9 @@ The backend is ahead of the frontend right now.
 - Room-specific transitions like Mail / Files / Web need finer-grained tool events
 
 ### Permissions
-- `networkAccessMode: 'limited'` is accepted but currently behaves like `open`
-- Real allowlist behavior is future work
+- Tool-level approval gates (`send`, `network`, `file:write`, `shell:exec`, etc.) are NOT enforced. The backend does not intercept adapter tool calls. An agent configured with these approval scopes will log a trust finding (`UNSUPPORTED_APPROVAL_SCOPE`) so the UI doesn't silently imply enforcement that doesn't exist.
+- `networkAccessMode: 'limited'` is accepted by the schema but currently behaves like `open`. Agents set to `limited` trigger a trust finding (`NETWORK_MODE_LIMITED_UNENFORCED`). Treat `limited` as experimental; for real network blocking, use `off`.
+- Real allowlist behavior and tool-level gates are future work, pending hermes hook integration.
 
 ### Adapters
 - Hermes is the verified path
@@ -339,8 +340,8 @@ That is acceptable for personal local use. It is not acceptable for shared or ex
 
 At dispatch time, the adapter honors the agent's `networkAccessMode`:
 
-- `off` — Hermes is spawned with `HTTP_PROXY` / `HTTPS_PROXY` pointed at a dead port. Outbound connections fail at the socket layer.
-- `limited` — accepted by the schema; currently behaves like `open` (allowlist support coming).
+- `off` — Hermes is spawned with `HTTP_PROXY` / `HTTPS_PROXY` pointed at a dead port. Outbound connections fail at the socket layer. **This is real enforcement.**
+- `limited` — experimental. Accepted by the schema, currently behaves like `open`. Agents set to `limited` trigger a `NETWORK_MODE_LIMITED_UNENFORCED` trust finding so the UI doesn't misrepresent it as a safety boundary.
 - `open` — no restriction.
 
 ### Remote-origin CORS

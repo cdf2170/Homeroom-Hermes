@@ -130,7 +130,11 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
 
   // Wire up services
   const auditService = createAuditService(auditRepo);
-  const trustService = createTrustService(trustRepo);
+  const trustService = createTrustService(trustRepo, async () => {
+    const { listCredentials } = await import("./lib/credentials.js");
+    const creds = await listCredentials();
+    return new Set(creds.map((c) => c.provider.toLowerCase()));
+  });
   const runtimeService = createRuntimeService(adapter);
   const settingsService = createSettingsService(settingsRepo);
   const approvalService = createApprovalService(approvalRepo, runRepo, auditService);
