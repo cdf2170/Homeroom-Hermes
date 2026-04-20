@@ -202,7 +202,7 @@ export function useRebuildAgentVault(agentId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vault', 'agent', agentId] });
     },
-    onError: (e: Error) => toast.error(`Vault rebuild failed: ${e.message}`),
+    onError: (e: Error) => toast.error(`Mirror rebuild failed: ${e.message}`),
   });
 }
 

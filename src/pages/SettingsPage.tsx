@@ -294,7 +294,7 @@ const SettingsPage: React.FC = () => {
           </h2>
           <p className="text-xs text-muted-foreground mb-4">
             Run Homeroom as a background service so agents keep working even when you close the terminal.
-            Scheduled runs, vault sync, and the SSE event stream all require the service to be active.
+            Scheduled runs, markdown mirror sync, and the SSE event stream all require the service to be active.
           </p>
           <div className="space-y-3">
             <div className="p-4 bg-muted rounded-xl space-y-2">

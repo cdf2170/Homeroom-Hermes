@@ -1143,7 +1143,7 @@ const AgentInspector: React.FC<AgentInspectorProps> = ({ agent, onClose }) => {
                 ))}
                 {agent.obsidianVaultPath && (
                   <div className="bg-muted rounded-lg p-2.5 space-y-1">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Obsidian vault</p>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Markdown mirror folder</p>
                     <p className="text-xs font-mono text-foreground break-all">{agent.obsidianVaultPath}</p>
                   </div>
                 )}

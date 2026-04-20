@@ -1,23 +1,211 @@
 # Homeroom-Hermes
 
-A local-first workspace for personal AI agents. Homeroom is the human-facing layer that sits on top of [hermes-agent](https://github.com/NousResearch/hermes-agent) by NousResearch. Each agent you configure in Homeroom runs as a real hermes-agent process on your machine.
+**Homeroom is a local-first workspace for personal AI agents. It helps regular people create, supervise, and trust real agents running on their own computer.**
+
+Each agent in Homeroom runs through [`hermes-agent`](https://github.com/NousResearch/hermes-agent). Homeroom is the human-facing layer on top: you describe what you want in plain language, choose what tools and permissions the agent has, and watch real work happen in a way that makes sense.
 
 Homeroom is not trying to make agents magical. It is trying to make them legible.
 
 ---
 
-## What it is
+## Why use it
 
-Homeroom is not an AI framework. It is a management interface. The actual execution happens in hermes-agent. Homeroom handles:
+Most agent tools expect you to be comfortable with terminals, logs, configs, and a lot of trial and error.
 
-- Creating and configuring agents (name, role, purpose, instructions, model)
-- Giving agents human-readable permissions and approval gates
-- Triggering runs and collecting output
-- Persisting run history, audit trails, trust findings, and settings in a durable event log
-- A local Obsidian-compatible vault that mirrors agent configuration as markdown
-- Scheduling background runs via node-cron
+Homeroom is for people who want something simpler:
 
-The backend is the single source of truth. Every visible thing the UI shows is reproducible from the backend's persisted state plus its ordered event log.
+- Create agents in plain language
+- Choose what they can and cannot do
+- Run them locally on your own machine
+- Review approvals before anything sensitive goes out
+- Inspect the audit trail if you want, without being forced into it
+
+It is built to feel calm, understandable, and safe by default.
+
+---
+
+## What you can do
+
+With Homeroom, you can:
+
+- Create an agent with a name, role, purpose, instructions, and model
+- Give it human-readable permissions and approval rules
+- Run it manually or on a schedule
+- Review output, audit logs, and trust findings
+- Keep a local markdown copy of agent configuration for reference and backup
+
+Examples:
+
+- *"Summarize my unread emails every morning"*
+- *"Review pull requests and flag risky ones"*
+- *"Watch a folder and organize new files"*
+- *"Research a topic and write a short brief"*
+
+---
+
+## Safe by default
+
+Homeroom is designed as a **personal localhost tool**, not a cloud SaaS dashboard.
+
+By default:
+
+- The backend binds to `127.0.0.1`
+- API keys are stored encrypted on disk
+- Agents can be restricted from network access, and that restriction is actually enforced
+- Approval gates can hold actions before they leave your machine
+- The backend is the source of truth for runs, approvals, events, and audit history
+
+This is meant for one person on one computer.
+
+---
+
+## Getting started
+
+### 1. Install Hermes
+
+Homeroom uses `hermes-agent` as the execution engine.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+source ~/.zshrc   # or ~/.bashrc
+hermes --version
+```
+
+See the [hermes-agent repo](https://github.com/NousResearch/hermes-agent) for platform-specific notes (WSL2, Termux, etc.).
+
+### 2. Install Homeroom
+
+```sh
+git clone https://github.com/cdf2170/Homeroom-Hermes.git
+cd Homeroom-Hermes
+pnpm install
+```
+
+### 3. Install the background service
+
+```sh
+pnpm daemon:install
+```
+
+This builds the UI, registers the local daemon, and starts Homeroom in the background.
+
+Optional: create a dock app shortcut on macOS:
+
+```sh
+pnpm app:install
+```
+
+### 4. Open Homeroom
+
+Once installed:
+
+- UI: http://localhost:5174
+- API: same origin, same port
+- No terminal required for daily use
+
+Close the browser tab if you want. The daemon keeps scheduled agents running.
+
+---
+
+## Daily use
+
+After setup, Homeroom is meant to feel simple:
+
+1. Open the app
+2. Create or select an agent
+3. Tell it what to do
+4. Review output or approvals if needed
+5. Check the audit trail only when you want proof
+
+When you update the codebase:
+
+```sh
+pnpm daemon:rebuild
+```
+
+Useful daemon commands:
+
+```sh
+pnpm daemon:status
+pnpm daemon:logs
+pnpm daemon:open
+pnpm daemon:uninstall
+```
+
+---
+
+## What works today
+
+### Agent management
+- Create, edit, and delete agents
+- Set name, role, purpose, instructions, model, and visual appearance
+- Enable or disable agents
+- Persist all agent state in SQLite
+
+### Runs
+- Manual runs dispatch real hermes-agent subprocesses
+- Per-agent model selection is passed through to Hermes
+- Run records store input, output, status, duration, trigger, and settle reason
+- Every lifecycle edge emits sequence-numbered events
+
+### Scheduling
+- Cron-based schedules via node-cron
+- Presets for manual, hourly, daily, weekdays, and custom schedules
+- Disabled agents unregister automatically
+
+### Security and enforcement
+- API keys encrypted at rest
+- Backend locked to localhost by default
+- Per-agent `networkAccessMode: 'off'` is actually enforced via a dead HTTP proxy at subprocess spawn time
+- Approval-required runs are actually held in `awaiting_approval` until resolved
+
+### Observability
+- Durable event log with monotonic sequence numbers
+- SSE stream with gap recovery support
+- Full snapshot endpoint for bootstrap
+- Audit log of create / update / delete / run / approval activity
+- Trust findings computed from configuration
+
+### Operations
+- macOS launchd daemon support
+- Auto-start on login, auto-restart on crash
+- Single origin serving both UI and API from localhost:5174
+
+---
+
+## What is not finished yet
+
+Being explicit so you know what is real and what is still in progress.
+
+### The v2 UI is still in progress
+
+The current frontend works, but it does not yet fully enforce the v2 render model. In particular:
+
+- Some views still poll instead of being fully event-driven
+- The office metaphor exists, but rooms are not yet fully tied to capability scopes
+- Approvals are implemented in the backend but do not yet have the full approval UI
+- Run-step trajectory rendering is still incomplete
+
+The backend is ahead of the frontend right now.
+
+### Execution richness
+- Hermes output is currently captured mostly as a single message step
+- Richer multi-step traces need tighter Hermes streaming integration
+- Room-specific transitions like Mail / Files / Web need finer-grained tool events
+
+### Permissions
+- `networkAccessMode: 'limited'` is accepted but currently behaves like `open`
+- Real allowlist behavior is future work
+
+### Adapters
+- Hermes is the verified path
+- Ollama and cloud adapters exist but are not yet fully proven end to end
+
+### Operational gaps
+- Scheduled runs do not fire while the Mac is asleep
+- Log rotation is not implemented yet
+- DB backup / restore is not implemented yet
+- There is no authentication layer, because this is intended for localhost single-user use
 
 ---
 
@@ -39,124 +227,56 @@ hermes-agent CLI
 AI provider (Anthropic, OpenAI, OpenRouter, etc.)
 ```
 
-When you click Run in the UI, the service calls:
+When you click Run, the service calls:
 
 ```sh
 hermes chat -q "<your input>" --quiet
 ```
 
-With `-m <model>` appended if the agent has a specific model selected. API keys are injected as environment variables. They are stored AES-256-GCM encrypted at `~/.homeroom/credentials.json.enc` and never touch the browser. If the agent's network access is set to `off`, hermes is spawned with `HTTP_PROXY`/`HTTPS_PROXY` pointing at a dead port so every outbound connection fails at the socket layer.
+If the agent has a selected model, Homeroom appends:
+
+```
+-m <model>
+```
+
+API keys are injected as environment variables at runtime and never stored in the browser.
+
+If an agent's network access is set to `off`, Hermes is launched with `HTTP_PROXY` and `HTTPS_PROXY` pointed at a dead port so outbound calls fail at the socket layer.
 
 ---
 
 ## Architecture at a glance
 
-- **One source of truth.** The SQLite database. Every entity (agents, runs, run steps, approvals, audit events) lives here.
-- **Every event has a sequence number.** The backend appends every state-changing event to a durable `stream_events` log with a monotonic sequence. The UI can detect gaps and request replay.
-- **Two endpoints for state recovery.**
-  - `GET /api/snapshot` returns the full canonical state plus the current cursor — used on initial load.
-  - `GET /api/events?since=N` returns events strictly after cursor `N` — used for gap replay.
-- **SSE with cursor.** `GET /api/events/stream?since=N` catches up missed events, then streams live events with their sequence numbers.
-- **Scene state is authoritative.** Every run lifecycle edge writes `sceneState` and `sceneRoomId` on the agent row and emits an `agent.transition` event. Only `run-service` writes these fields.
-- **Permissions are enforced, not just stored.** `networkAccessMode: 'off'` actually blocks network access at the subprocess level. `requiresApprovalFor` actually holds runs in `awaiting_approval` until the user resolves an approval record.
+- **SQLite is the source of truth.**
+- **Every state-changing event has a monotonic sequence number.**
+- **The UI can detect gaps and request replay.**
+- **Scene state is authoritative** — written only by run-service on lifecycle transitions.
+- **Permissions are enforced at dispatch**, not just stored as metadata.
+
+Key endpoints:
+
+- `GET /api/snapshot` — full canonical state plus the event cursor
+- `GET /api/events?since=N[&through=M]` — targeted replay after cursor `N`
+- `GET /api/events/stream?since=N` — live SSE stream with optional catch-up
+
+### Storage split
+
+*Your agents are files you own. Their work is runtime data the system records.*
+
+- **Agent config** (identity, role, purpose, permissions, schedule, rules, memory) — SQLite today, with a one-way markdown mirror for human legibility. Planned to flip to files-first for the core profile (see [Planned: files-first config](#planned-files-first-config)).
+- **Runtime data** (runs, run steps, approvals, audit events, stream events) — SQLite, permanently. Flat files cannot provide the transactional guarantees this layer requires.
 
 ---
 
-## Requirements
+## Local markdown mirror
 
-- Node.js 18 or later
-- pnpm (used for monorepo workspace management)
-- [hermes-agent](https://github.com/NousResearch/hermes-agent) installed and on your PATH
-- At least one configured AI provider API key
+Homeroom maintains a local markdown mirror at:
 
-Install hermes-agent using the official installer:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+```
+~/.homeroom/vault/Agents/<name>/
 ```
 
-Then reload your shell and verify:
-
-```sh
-source ~/.zshrc   # or: source ~/.bashrc
-hermes --version
-```
-
-See the [hermes-agent repo](https://github.com/NousResearch/hermes-agent) for platform-specific notes (WSL2, Termux, etc.).
-
----
-
-## Getting started (daily use)
-
-```sh
-# Clone
-git clone https://github.com/cdf2170/Homeroom-Hermes.git
-cd Homeroom-Hermes
-
-# Install dependencies
-pnpm install
-
-# One-time: builds the UI and registers the background daemon
-pnpm daemon:install
-
-# Optional: create a Homeroom.app icon you can drag to your dock
-pnpm app:install
-```
-
-From then on:
-
-- **One process**, running in the background, automatically on login
-- **One URL**: http://localhost:5174 serves both the UI and the API
-- **No terminal needed**. Click the Homeroom app in your dock, or bookmark the URL
-- **Always on**. Close the browser tab; scheduled agents keep running
-
-When you update the code:
-
-```sh
-pnpm daemon:rebuild   # rebuilds the UI and restarts the daemon
-```
-
-### Daemon commands
-
-```sh
-pnpm daemon:status      # Check if the service is running
-pnpm daemon:logs        # View recent logs
-pnpm daemon:open        # Open the UI in your default browser
-pnpm daemon:uninstall   # Stop and remove the service
-```
-
-### Development mode
-
-If you want hot reload while hacking on the UI:
-
-```sh
-pnpm daemon:install   # backend runs as daemon
-pnpm dev              # vite dev server on :8080 with HMR, talks to the daemon
-```
-
----
-
-## Environment variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `5174` | Backend service port |
-| `HOST` | `127.0.0.1` | Backend bind address. Change only if you understand the security implications. |
-| `DB_PATH` | `homeroom.db` | SQLite database path |
-| `ADAPTER` | `hermes` | Runtime adapter: `hermes`, `ollama`, `cloud` |
-| `HERMES_CLI_PATH` | `hermes` | Path to hermes binary |
-| `HERMES_TIMEOUT_SECONDS` | `120` | Max seconds per agent turn |
-| `VAULT_PATH` | `~/.homeroom/vault` | Local Obsidian-compatible vault path |
-| `STATIC_ROOT` | `<repo>/dist` | Built frontend directory. The backend serves the UI from here. |
-| `ALLOW_REMOTE_ORIGINS` | `false` | Allow non-localhost CORS origins. **Requires `NODE_ENV=development` to take effect.** See security section. |
-| `NODE_ENV` | (unset) | Set to `development` to enable remote origin CORS when `ALLOW_REMOTE_ORIGINS=true` |
-| `LOG_LEVEL` | `info` | Fastify log level |
-
----
-
-## Local docs vault
-
-Every agent gets a folder at `$VAULT_PATH/Agents/<name>/`:
+Files:
 
 - `AGENT.md` — identity, role, runtime settings
 - `PROFILE.md` — instructions, behavior, notes
@@ -166,167 +286,115 @@ Every agent gets a folder at `$VAULT_PATH/Agents/<name>/`:
 - `TOOLS.md` — tool scopes and permissions
 - `RUNS.md` — last 20 runs summary
 
-Files are rewritten automatically when agent configuration changes. You can open `$VAULT_PATH` in Obsidian. The vault is a generated export, not a two-way sync. The sync status performs real on-disk comparison:
+**Every file declares its authority in YAML frontmatter.** Today every file is `authority: export`, meaning it is a one-way mirror from SQLite. You can open the folder in Obsidian, grep it, diff it, back it up with any tool. Edits you make in your editor are not read back into the backend; they will be overwritten on the next sync.
 
-- **In sync** — backend state, last-written hash, and on-disk content all match
-- **Backend changed** — backend state has changed since the last write; rebuild to update
-- **Files edited** — on-disk files were modified outside Homeroom; rebuilding will overwrite
-- **Not written** — vault files haven't been generated yet
-- **Diverged** — both backend state and disk files changed independently
+Mirror sync states:
 
----
+- **In sync** — backend and disk match
+- **Backend changed** — backend changed since last write
+- **Files edited** — disk changed outside Homeroom
+- **Not written** — files not generated yet
+- **Diverged** — backend and disk changed independently
 
-## What works today
+### Planned: files-first config
 
-### Agent lifecycle
-- Create, edit, delete agents; all persisted in SQLite
-- Character fields: name, role, purpose, personality, archetype, vibe
-- Visual appearance (avatar color, hair, outfit) persisted per agent
-- Enable / disable toggle gates autonomous execution
+The deliberate direction is that agent config becomes authoritative on disk for the core profile files, while runtime data stays in SQLite. Phased:
 
-### Runs
-- Manual runs trigger real hermes-agent subprocesses
-- Per-agent model selection (`-m <model>` threaded through to hermes)
-- Run records capture input, output, status, duration, trigger, and settle reason
-- Explicit `timeout` status (not swallowed as a generic failure)
-- Every run lifecycle edge emits sequence-numbered events on the stream
-- Run steps table records each structured step (currently one `message` or `error` step per run; see "not yet" below)
+1. **v1 (now) — language fix.** Call this a markdown mirror, not a vault with two-way authority. Every generated file declares `authority: export`. Done.
+2. **v2 — authority flip for the core profile.** `AGENT.md`, `PROFILE.md`, `TOOLS.md`, `SCHEDULE.md` become `authority: file`. The backend reads them on change. `MEMORY.md` and `RULES.md` stay in SQLite until the pattern is proven.
+3. **v3 — file watcher + parser + validation.** A watcher detects edits, parses frontmatter and body, validates against schemas, surfaces errors in the UI, emits `agent.updated` events.
+4. **v4 — conflict policy.** When both the app and a file editor modify the same field, show a merge banner instead of silently overwriting.
 
-### Scheduling
-- Cron-based scheduler via node-cron
-- Presets: manual, hourly, every 4 hours, twice daily, daily, weekdays, custom
-- Boot-time registration; clean shutdown on SIGTERM/SIGINT
-- Disabled agents auto-unregister their jobs
-
-### Approvals (backend complete; UI pending)
-- Per-agent `requiresApprovalFor` holds scheduled/background runs in `awaiting_approval`
-- Approval records track runId, kind, reason, preview, resolution
-- `POST /api/approvals/:id/resolve` (`approve` / `deny`) either dispatches the queued run or cancels it
-- `approval.requested` and `approval.resolved` events on the stream
-
-### Security (actually enforced)
-- API keys encrypted at rest with AES-256-GCM; never in browser storage
-- Backend bound to 127.0.0.1 by default
-- CORS locked to localhost unless explicitly opened with dev-only flag
-- `networkAccessMode: 'off'` spawns hermes with a dead HTTP proxy — the subprocess cannot reach the network
-
-### Observability
-- Durable event log with monotonic sequences
-- SSE stream with gap detection support
-- Targeted replay endpoint for catch-up
-- Full snapshot endpoint for bootstrap
-- Audit log of every create/update/delete/run/approval
-- Trust findings computed from agent configuration
-
-### Operations
-- macOS launchd daemon installer (`pnpm daemon:install`)
-- Auto-start on login, auto-restart on crash
-- Single origin serving: backend hosts both UI and API at localhost:5174
-- One-click `.app` shortcut for the dock
+Runtime data (runs, run steps, approvals, audit events, stream events) will permanently stay in SQLite.
 
 ---
 
-## What is not yet implemented
+## Security model
 
-Being explicit about the gaps so you know what's real and what's still in flight.
-
-### UI rebuild in progress
-The current frontend is functional but does not yet reflect the canonical render rule from the v2 architecture plan. Specifically:
-- Visuals aren't yet bound to the sequence-numbered event stream (still uses polling in places)
-- The office metaphor exists but rooms are not yet tied to capability scopes
-- Approvals have no UI yet — the backend is complete but there's no approval card or queue
-- Run step trajectory view is not yet rendered
-
-The v2 UI, built around real-time event-driven rendering, is being designed and will replace the current frontend. Until then, what you see is a transitional interface over a backend that is already v2-ready.
-
-### Execution richness
-- **Hermes streaming** — we currently capture the full output as a single `message` step per run. When hermes streaming is wired, the adapter will emit multiple `run.step` events (thoughts, tool calls, tool results) during a run. The backend contract already supports this; the adapter just needs the integration.
-- **Capability-specific rooms** — agents always transition to/from the Focus room. Moves to Mail / Files / Web rooms require tool-level events from hermes that we don't intercept yet.
-- **Approval kinds beyond `pre_dispatch`** — types for `send` and `network` gates exist but aren't wired; mid-run gates need hermes hooks we haven't added.
-
-### Permissions
-- `networkAccessMode: 'limited'` is accepted in the schema but currently behaves like `'open'`. Real allowlist support is future work.
-
-### Adapters
-- Ollama and cloud adapters exist but are not tested end-to-end. Hermes is the only verified execution path.
-
-### Operations
-- **Sleep awareness** — the launchd daemon is a `LaunchAgent`, so scheduled runs don't fire while the Mac is asleep. True always-on requires either a `LaunchDaemon` or a caffeinate wrapper.
-- **Log rotation** — `~/.homeroom/logs/service.stdout.log` and `.stderr.log` grow unboundedly.
-- **DB backup** — there is no snapshot/restore story for `homeroom.db`.
-- **Auth** — none. Anyone on localhost can manage everything.
-
----
-
-## Security
-
-> **This is a local, single-user tool. It has no authentication.**
+Homeroom is a local, single-user tool. It has no authentication.
 
 ### Credential storage
 
-API keys are encrypted with AES-256-GCM and stored at `~/.homeroom/credentials.json.enc`. The encryption key is derived from the machine ID and a local salt. This protects against casual file inspection but not against a determined attacker with access to both the encrypted file and the machine ID. This is local privacy, not hardened secret management. Keys are never stored in the browser.
+API keys are encrypted with AES-256-GCM and stored at:
 
-### Network isolation
+```
+~/.homeroom/credentials.json.enc
+```
 
-The backend binds to `127.0.0.1` by default and only accepts connections from localhost. **There is no authentication layer.** Anyone who can reach `localhost:5174` can:
+Keys are derived from machine-local material plus a salt. This protects against casual inspection; it does not protect against a determined attacker with full machine access. Keys are never stored in the browser.
 
-- Manage agents, trigger runs, and view run output
-- Read and write encrypted API credentials
-- Modify all settings
+### Localhost-only default
 
-This is acceptable for single-user local use. It is not acceptable for multi-user or network-exposed deployments.
+The backend binds to `127.0.0.1`. Anyone who can reach `localhost:5174` can:
+
+- Manage agents
+- Trigger runs
+- Read run output
+- Write credentials
+- Modify settings
+
+That is acceptable for personal local use. It is not acceptable for shared or exposed deployments.
 
 ### Per-agent network policy
 
-Each agent's `networkAccessMode` is enforced at dispatch:
+At dispatch time, the adapter honors the agent's `networkAccessMode`:
 
-- `off` — hermes spawns with `HTTP_PROXY` and `HTTPS_PROXY` pointed at a dead port. Network calls fail at the socket layer.
+- `off` — Hermes is spawned with `HTTP_PROXY` / `HTTPS_PROXY` pointed at a dead port. Outbound connections fail at the socket layer.
 - `limited` — accepted by the schema; currently behaves like `open` (allowlist support coming).
 - `open` — no restriction.
 
-### Remote origin CORS
+### Remote-origin CORS
 
-Setting `ALLOW_REMOTE_ORIGINS=true` allows preview hosts (`*.lovable.app`, `*.lovableproject.com`) to reach the backend via CORS. This is gated behind two conditions:
+`ALLOW_REMOTE_ORIGINS=true` only takes effect when `NODE_ENV=development` is also set. This is for preview and development environments only and should not be enabled on shared networks.
 
-1. `ALLOW_REMOTE_ORIGINS=true` must be set
-2. `NODE_ENV=development` must also be set
+---
 
-If only `ALLOW_REMOTE_ORIGINS` is set without `NODE_ENV=development`, the service logs a warning and does **not** allow remote origins. **Do not enable this on shared networks.**
+## Environment variables
 
-### Agent execution
-
-Keys are injected as environment variables when hermes starts. They are not included in prompts or agent output. Keys are masked in all API responses.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `5174` | Backend service port |
+| `HOST` | `127.0.0.1` | Backend bind address |
+| `DB_PATH` | `homeroom.db` | SQLite database path |
+| `ADAPTER` | `hermes` | Runtime adapter |
+| `HERMES_CLI_PATH` | `hermes` | Path to Hermes binary |
+| `HERMES_TIMEOUT_SECONDS` | `120` | Max runtime per turn |
+| `VAULT_PATH` | `~/.homeroom/vault` | Markdown mirror path |
+| `STATIC_ROOT` | `<repo>/dist` | Built frontend directory |
+| `ALLOW_REMOTE_ORIGINS` | `false` | Allow non-localhost CORS in dev only |
+| `NODE_ENV` | (unset) | Must be `development` to allow remote origins |
+| `LOG_LEVEL` | `info` | Fastify log level |
 
 ---
 
 ## API surface
 
-All endpoints are under `/api/`.
+All endpoints live under `/api/`.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/snapshot` | Full canonical state + current event cursor (bootstrap) |
-| `GET /api/events/stream?since=N` | SSE with live events; replays after cursor `N` if provided |
-| `GET /api/events?since=N[&through=M]` | Targeted replay of events (gap recovery) |
+| `GET /api/snapshot` | Full canonical state plus current cursor |
+| `GET /api/events/stream?since=N` | SSE live stream with replay support |
+| `GET /api/events?since=N[&through=M]` | Targeted event replay |
 | `GET /api/agents` | List agents |
 | `POST /api/agents` | Create agent |
-| `GET/PATCH/DELETE /api/agents/:id` | Agent detail and mutations |
+| `GET/PATCH/DELETE /api/agents/:id` | Agent detail and updates |
 | `POST /api/agents/:id/run` | Start a manual run |
-| `GET /api/agents/:id/runs` | Run history for one agent |
-| `GET /api/agents/:id/activity` | Audit trail for one agent |
-| `PUT /api/agents/:id/schedule` | Set schedule preset or cron |
+| `GET /api/agents/:id/runs` | Agent run history |
+| `GET /api/agents/:id/activity` | Agent audit trail |
+| `PUT /api/agents/:id/schedule` | Set schedule |
 | `GET /api/agents/:id/trust` | Trust findings |
 | `GET /api/runs` | Global run history |
-| `GET /api/runs/:id/steps` | Step-level trace for one run |
-| `GET /api/approvals[?status=pending&agentId=<id>]` | Pending approvals |
-| `POST /api/approvals/:id/resolve` | Approve or deny; resumes or cancels the run |
+| `GET /api/runs/:id/steps` | Step-level trace |
+| `GET /api/approvals` | Pending approvals |
+| `POST /api/approvals/:id/resolve` | Approve or deny |
 | `GET /api/audit` | Global audit log |
-| `GET /api/trust/findings` | Trust findings across all agents |
-| `GET /api/vault/status[/:id]` | Vault sync state with on-disk drift |
-| `POST /api/vault/rebuild[/:id]` | Regenerate vault files |
+| `GET /api/trust/findings` | Trust findings across agents |
+| `GET /api/vault/status[/:id]` | Markdown mirror sync state |
+| `POST /api/vault/rebuild[/:id]` | Rebuild markdown mirror |
 | `GET /api/credentials` | Masked credential list |
-| `POST /api/credentials/:provider` | Save an API key (encrypted) |
-| `DELETE /api/credentials/:provider` | Remove a saved key |
+| `POST /api/credentials/:provider` | Save encrypted credential |
+| `DELETE /api/credentials/:provider` | Remove credential |
 | `GET /api/runtime/health` | Runtime health |
 | `GET /api/runtime/models` | Available models |
 | `GET/PATCH /api/settings` | App-wide settings |
@@ -337,16 +405,16 @@ All endpoints are under `/api/`.
 
 ```
 Homeroom-Hermes/
-  apps/service/       Fastify backend (SQLite, adapter layer, vault, scheduler, events)
+  apps/service/       Fastify backend (SQLite, adapter layer, markdown mirror, scheduler, events)
   packages/
     adapter-hermes/   Wraps the hermes CLI
-    adapter-ollama/   Ollama adapter (experimental, not fully tested)
-    adapter-cloud/    Direct cloud API adapter (experimental, not fully tested)
-    adapter-core/     Shared adapter interface, including AdapterRunPolicy
+    adapter-ollama/   Ollama adapter (experimental)
+    adapter-cloud/    Direct cloud adapter (experimental)
+    adapter-core/     Shared adapter interface
     domain/           Shared domain types
-    schemas/          Zod schemas shared across packages
-    contracts/        Request/response contracts for the HTTP API
-  src/                React frontend (Vite) — current v1; v2 rebuild in progress
+    schemas/          Shared Zod schemas
+    contracts/        Request/response contracts
+  src/                React frontend (current UI; v2 rebuild in progress)
   scripts/            Daemon installer, app shortcut generator
 ```
 
@@ -358,13 +426,13 @@ Homeroom-Hermes/
 pnpm --filter @homeroom/service test
 ```
 
-30 tests passing across 4 files covering agents, app integration, event bus, and vault drift detection.
+Current backend test coverage: agents, app integration, event bus, vault drift detection. 30 tests passing across 4 files.
 
 ---
 
 ## Design principles
 
-The product is built on eight explicit principles:
+Homeroom is built around eight product principles:
 
 1. Safe by default
 2. Plug and play
@@ -380,7 +448,7 @@ And two load-bearing engineering rules:
 - **The UI is a faithful translation of backend state.** No decorative motion. If the backend is silent, the UI is still.
 - **Every visual state must be reproducible from persisted state plus ordered events plus wall-clock time.** If it isn't, it's a lie by construction.
 
-The backend in this repo is v2-ready with respect to both rules. The v2 UI that enforces them end-to-end is the next piece of work.
+The backend is v2-ready with respect to both rules. The v2 UI is the next piece of work.
 
 ---
 

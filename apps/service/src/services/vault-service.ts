@@ -1,13 +1,25 @@
 /**
  * vault-service.ts
  *
- * Maintains a local Obsidian-compatible markdown vault that mirrors agent
- * configuration. Every agent gets a folder under <vaultRoot>/Agents/<slug>/
- * with one file per concern (AGENT.md, PROFILE.md, MEMORY.md, etc.).
+ * Maintains a local markdown mirror of each agent's configuration. Every
+ * agent gets a folder under <mirrorRoot>/Agents/<slug>/ with one file per
+ * concern (AGENT.md, PROFILE.md, MEMORY.md, etc.).
  *
- * The backend is the single source of truth. The vault is a generated mirror,
- * not an authoritative write path. A hash + timestamp per agent tracks whether
- * the docs are in sync with backend state.
+ * Today, every file is a one-way EXPORT from SQLite. The frontmatter field
+ * `authority: export` on every file makes this explicit to both humans and
+ * to future parsers.
+ *
+ * Planned: certain profile files (AGENT.md, PROFILE.md, TOOLS.md, SCHEDULE.md)
+ * will become authoritative on disk in a later version. Those will be written
+ * with `authority: file` and read back by a file watcher. Until then, SQLite
+ * is the single source of truth for all config.
+ *
+ * Runtime data (runs, run steps, approvals, audit events, stream events)
+ * will permanently stay in SQLite. Flat files cannot provide the transactional
+ * guarantees required for that layer.
+ *
+ * File naming here still says "vault" for historical reasons; the product
+ * language says "markdown mirror."
  */
 
 import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from "fs";
@@ -79,6 +91,24 @@ function hash(content: string): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
 
+/**
+ * Strip metadata lines that vary per-write (like the timestamp) but do not
+ * represent content drift. Hashing this normalized form lets us answer
+ * "did the substantive config change?" separately from "when did we last
+ * write it?".
+ */
+function normalizeForHash(content: string): string {
+  return content
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trimStart();
+      return !trimmed.startsWith("last_synced_at:")
+          && !trimmed.startsWith("last_synced:")
+          && !trimmed.startsWith("authority:");
+    })
+    .join("\n");
+}
+
 function fmDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
@@ -102,7 +132,8 @@ enabled: ${p.enabled}
 runtime_mode: ${p.runtimeMode ?? ""}
 smartness_level: ${p.smartnessLevel ?? ""}
 model_ref: ${p.modelRef ?? ""}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # ${p.name}
@@ -120,7 +151,8 @@ function renderProfileMd(p: AgentProfile): string {
   return `---
 agent_id: ${p.id}
 agent_name: ${p.name}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # Profile: ${p.name}
@@ -165,7 +197,8 @@ function renderMemoryMd(p: AgentProfile, items: MemoryItem[]): string {
 agent_id: ${p.id}
 agent_name: ${p.name}
 item_count: ${items.length}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # Memory: ${p.name}
@@ -185,7 +218,8 @@ function renderRulesMd(p: AgentProfile, items: RuleItem[]): string {
 agent_id: ${p.id}
 agent_name: ${p.name}
 rule_count: ${items.length}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # Rules: ${p.name}
@@ -199,7 +233,8 @@ function renderScheduleMd(p: AgentProfile, schedule: Schedule | null): string {
     return `---
 agent_id: ${p.id}
 agent_name: ${p.name}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # Schedule: ${p.name}
@@ -212,7 +247,8 @@ _No schedule configured._
 agent_id: ${p.id}
 agent_name: ${p.name}
 schedule_enabled: ${schedule.enabled}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # Schedule: ${p.name}
@@ -232,7 +268,8 @@ function renderToolsMd(p: AgentProfile, perm: PermissionProfile | null): string 
     return `---
 agent_id: ${p.id}
 agent_name: ${p.name}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # Tools & Permissions: ${p.name}
@@ -253,7 +290,8 @@ agent_name: ${p.name}
 safety_level: ${perm.safetyLevel}
 network_access: ${perm.networkAccess}
 background_allowed: ${perm.backgroundAllowed}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # Tools & Permissions: ${p.name}
@@ -287,7 +325,8 @@ function renderRunsMd(p: AgentProfile, runs: RunSummary[]): string {
 agent_id: ${p.id}
 agent_name: ${p.name}
 run_count: ${runs.length}
-last_synced: ${new Date().toISOString().slice(0, 16)} UTC
+authority: export
+last_synced_at: ${new Date().toISOString()}
 ---
 
 # Runs: ${p.name}
@@ -333,11 +372,36 @@ export function createVaultService(vaultRoot: string) {
 
   loadSyncIndex();
 
-  // Ensure vault root and top-level README exist
+  // Ensure mirror root and top-level README exist
   mkdirSync(join(vaultRoot, "Agents"), { recursive: true });
   if (!existsSync(join(vaultRoot, "README.md"))) {
-    writeFileSync(join(vaultRoot, "README.md"),
-      `# Homeroom Vault\n\nThis folder is auto-generated by the Homeroom backend.\nEach agent's configuration is mirrored here as Obsidian-compatible markdown.\n\nDo not edit these files manually — changes will be overwritten on the next sync.\n`
+    writeFileSync(
+      join(vaultRoot, "README.md"),
+      `# Homeroom — local markdown mirror
+
+This folder is auto-generated by the Homeroom backend. Each agent's
+configuration is mirrored here as plain markdown you can open in Obsidian,
+grep, diff, or back up with any tool.
+
+## Authority
+
+Every generated file declares its authority in the YAML frontmatter:
+
+- \`authority: export\` — the file is a one-way export from the SQLite
+  database. Edits here are not read back. This is the state today.
+- \`authority: file\` — the file is the source of truth. The backend reads
+  it on change. Planned for a later version.
+
+Today every file is \`authority: export\`. Edits you make will be overwritten
+on the next sync.
+
+## Runtime data lives elsewhere
+
+Runs, approvals, audit events, and the event stream are not mirrored here.
+They live in SQLite (\`~/.homeroom/homeroom.db\` by default) because flat
+files cannot provide the transactional guarantees that audit and approval
+integrity require.
+`,
     );
   }
 
@@ -367,7 +431,7 @@ export function createVaultService(vaultRoot: string) {
       };
 
       const combined = Object.values(files).join("\n");
-      const currentHash = hash(combined);
+      const currentHash = hash(normalizeForHash(combined));
       const existing = syncMap.get(profile.id);
       if (existing?.hash === currentHash) return; // nothing changed
 
@@ -432,7 +496,7 @@ export function createVaultService(vaultRoot: string) {
         renderToolsMd(profile, permissionProfile),
         renderRunsMd(profile, runs),
       ].join("\n");
-      return hash(content);
+      return hash(normalizeForHash(content));
     },
 
     /**
@@ -455,7 +519,7 @@ export function createVaultService(vaultRoot: string) {
           if (!existsSync(filePath)) return null; // missing file = not synced
           contents.push(readFileSync(filePath, "utf8"));
         }
-        return hash(contents.join("\n"));
+        return hash(normalizeForHash(contents.join("\n")));
       } catch {
         return null;
       }

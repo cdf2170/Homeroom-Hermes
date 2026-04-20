@@ -1017,7 +1017,7 @@ const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center gap-2">
           <BookMarked className="w-4 h-4 text-muted-foreground animate-pulse" />
-          <p className="text-xs text-muted-foreground">Loading vault status...</p>
+          <p className="text-xs text-muted-foreground">Loading mirror status...</p>
         </div>
       </div>
     );
@@ -1028,10 +1028,10 @@ const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center gap-2 mb-2">
           <BookMarked className="w-4 h-4 text-muted-foreground" />
-          <p className="text-xs font-semibold text-foreground">Docs vault</p>
+          <p className="text-xs font-semibold text-foreground">Markdown mirror</p>
           <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground ml-auto">Backend offline</span>
         </div>
-        <p className="text-[11px] text-muted-foreground">Connect to the backend service to use the vault.</p>
+        <p className="text-[11px] text-muted-foreground">Connect to the backend to view the markdown mirror.</p>
       </div>
     );
   }
@@ -1039,9 +1039,9 @@ const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
   const driftStatus = status.driftStatus ?? (status.inSync ? 'in-sync' : 'backend-ahead');
   const driftLabels: Record<string, { label: string; color: string; message: string }> = {
     'in-sync':       { label: 'In sync',         color: 'bg-status-working/10 text-status-working',  message: '' },
-    'backend-ahead': { label: 'Backend changed',  color: 'bg-status-waiting/10 text-status-waiting',  message: 'Backend state changed since last write. Rebuild to update vault files.' },
-    'disk-modified': { label: 'Files edited',     color: 'bg-amber-500/10 text-amber-600',            message: 'On-disk vault files were modified outside Homeroom. Rebuilding will overwrite manual edits.' },
-    'not-written':   { label: 'Not written',      color: 'bg-muted text-muted-foreground',            message: 'Vault files have not been written yet. Run a rebuild to generate them.' },
+    'backend-ahead': { label: 'Backend changed',  color: 'bg-status-waiting/10 text-status-waiting',  message: 'Backend state changed since last write. Rebuild to update the mirror.' },
+    'disk-modified': { label: 'Files edited',     color: 'bg-amber-500/10 text-amber-600',            message: 'Mirror files were modified outside Homeroom. Rebuilding will overwrite manual edits (today the mirror is a one-way export).' },
+    'not-written':   { label: 'Not written',      color: 'bg-muted text-muted-foreground',            message: 'Mirror files have not been written yet. Run a rebuild to generate them.' },
     'diverged':      { label: 'Diverged',         color: 'bg-red-500/10 text-red-600',                message: 'Both backend state and on-disk files changed independently. Rebuilding will overwrite disk edits with current backend state.' },
   };
   const drift = driftLabels[driftStatus] ?? driftLabels['backend-ahead'];
@@ -1050,7 +1050,7 @@ const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
     <div className="bg-card border border-border rounded-xl p-4 space-y-3">
       <div className="flex items-center gap-2">
         <BookMarked className="w-4 h-4 text-primary" />
-        <p className="text-xs font-semibold text-foreground">Docs vault</p>
+        <p className="text-xs font-semibold text-foreground">Markdown mirror</p>
         <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ml-auto ${drift.color}`}>{drift.label}</span>
       </div>
 
@@ -1080,7 +1080,7 @@ const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
           disabled={rebuild.isPending}
         >
           <RefreshCw className={`w-3 h-3 ${rebuild.isPending ? 'animate-spin' : ''}`} />
-          {rebuild.isPending ? 'Rebuilding...' : 'Rebuild docs'}
+          {rebuild.isPending ? 'Rebuilding...' : 'Rebuild mirror'}
         </Button>
       </div>
 
