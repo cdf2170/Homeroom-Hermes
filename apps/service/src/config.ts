@@ -21,6 +21,8 @@ export interface Config {
   logLevel: string;
   /** Path to the local Obsidian-compatible vault. Defaults to ~/.homeroom/vault */
   vaultPath: string;
+  /** Path to the built frontend (vite build output). Defaults to <repo>/dist */
+  staticRoot: string;
 }
 
 const VALID_ADAPTERS: Config["adapter"][] = ["hermes", "ollama", "cloud"];
@@ -53,5 +55,6 @@ export function loadConfig(): Config {
     cloudModel:           process.env["CLOUD_MODEL"] ?? "gpt-4o",
     logLevel:             process.env["LOG_LEVEL"] ?? "info",
     vaultPath:            process.env["VAULT_PATH"] ?? resolve(homedir(), ".homeroom", "vault"),
+    staticRoot:           process.env["STATIC_ROOT"] ?? resolve(process.cwd(), "..", "..", "dist"),
   };
 }

@@ -14,9 +14,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "daemon:install": "./scripts/daemon.sh install",
+    "daemon:rebuild": "./scripts/daemon.sh rebuild",
     "daemon:uninstall": "./scripts/daemon.sh uninstall",
     "daemon:status": "./scripts/daemon.sh status",
-    "daemon:logs": "./scripts/daemon.sh logs"
+    "daemon:logs": "./scripts/daemon.sh logs",
+    "daemon:open": "./scripts/daemon.sh open",
+    "app:install": "./scripts/create-app-shortcut.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

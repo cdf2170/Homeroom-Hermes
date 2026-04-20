@@ -29,6 +29,7 @@ export async function createTestApp() {
     cloudModel: "gpt-4o",
     logLevel: "silent",
     vaultPath: "/tmp/homeroom-test-vault",
+    staticRoot: "/tmp/homeroom-nonexistent-static",
   };
 
   const db = createDb(config.dbPath);

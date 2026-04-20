@@ -18,7 +18,17 @@
 import type { AgentSummaryView, AgentProfileView, RuntimeHealthView, SettingsView } from '@/types/views';
 import type { AgentState, OfficeZone } from '@/types/agent';
 
-const BASE = 'http://127.0.0.1:5174';
+// When the UI is served by the backend itself (daemon mode), origin matches
+// and we use relative URLs. In dev mode (vite on 8080), we need the absolute
+// backend URL. Detect at runtime.
+const BASE = (() => {
+  if (typeof window === 'undefined') return 'http://127.0.0.1:5174';
+  const { origin } = window.location;
+  // Served by the backend directly -> use same origin (relative URLs)
+  if (origin === 'http://127.0.0.1:5174' || origin === 'http://localhost:5174') return '';
+  // Served by vite dev server (8080) or anywhere else -> talk to local backend
+  return 'http://127.0.0.1:5174';
+})();
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,8 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
+import fastifyStatic from "@fastify/static";
+import { existsSync } from "fs";
 import type { Db } from "./db/client.js";
 import type { RuntimeAdapter } from "@homeroom/adapter-core";
 import type { Config } from "./config.js";
@@ -141,27 +143,7 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
     return reply.code(500).send({ error: "INTERNAL_ERROR", message: "Something went wrong" });
   });
 
-  // Root info route
-  app.get("/", async (_req, reply) => {
-    return reply.send({
-      name: "Homeroom Service",
-      version: "0.0.0",
-      status: "ok",
-      docs: "All endpoints are under /api/*",
-      endpoints: [
-        "GET  /api/runtime/health",
-        "GET  /api/runtime/models",
-        "GET  /api/settings",
-        "GET  /api/agents",
-        "GET  /api/trust/findings",
-        "GET  /api/audit",
-        "GET  /api/frontdesk/summary",
-        "GET  /api/events/stream",
-      ],
-    });
-  });
-
-  // Register routes
+  // Register API routes first (so they take precedence over static files)
   await app.register(buildRuntimeRoutes(runtimeService));
   await app.register(buildSettingsRoutes(settingsService));
   await app.register(buildAgentRoutes(agentService, runService, scheduleService, trustService, auditService));
@@ -171,6 +153,38 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   await app.register(buildEventsRoutes());
   await app.register(buildCredentialsRoutes());
   await app.register(buildVaultRoutes(vaultService, agentService, memoryRepo, ruleRepo, permissionRepo, scheduleRepo, runRepo));
+
+  // Serve the built frontend at the root.
+  // The frontend is built separately (vite build at repo root) into <repo>/dist.
+  // If the build output exists, serve it; otherwise fall back to API-only mode.
+  const staticRoot = config.staticRoot;
+  if (staticRoot && existsSync(staticRoot)) {
+    await app.register(fastifyStatic, {
+      root: staticRoot,
+      prefix: "/",
+      wildcard: false,
+    });
+
+    // SPA fallback — any unmatched GET that isn't /api/* returns index.html so
+    // client-side routing (React Router) can handle the path.
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method !== "GET" || req.url.startsWith("/api/")) {
+        return reply.code(404).send({ error: "NOT_FOUND", message: `Route ${req.method} ${req.url} not found` });
+      }
+      return reply.sendFile("index.html");
+    });
+  } else {
+    // Dev mode or no build yet -- serve a small info page at root
+    app.get("/", async (_req, reply) => {
+      return reply.send({
+        name: "Homeroom Service",
+        version: "0.0.0",
+        status: "ok",
+        ui: "Frontend build not found. Run 'pnpm build' at repo root, then restart the service.",
+        docs: "All endpoints are under /api/*",
+      });
+    });
+  }
 
   // Import any pre-configured agents from the runtime adapter on first boot
   await agentService.importFromAdapter();

@@ -5,11 +5,16 @@
 # Installs/uninstalls a macOS launchd user agent so the Homeroom backend
 # service runs automatically on login and stays running 24/7.
 #
+# The backend serves both the API AND the built frontend UI at
+# http://localhost:5174 -- one process, one URL, always on.
+#
 # Usage:
-#   ./scripts/daemon.sh install     Install and start the daemon
+#   ./scripts/daemon.sh install     Build UI, install and start the daemon
+#   ./scripts/daemon.sh rebuild     Rebuild UI and restart the daemon
 #   ./scripts/daemon.sh uninstall   Stop and remove the daemon
 #   ./scripts/daemon.sh status      Check if the daemon is running
 #   ./scripts/daemon.sh logs        Tail the daemon logs
+#   ./scripts/daemon.sh open        Open the UI in your default browser
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -30,6 +35,20 @@ NODE_BIN="$(which node 2>/dev/null || echo '/opt/homebrew/bin/node')"
 
 # ── Install ──────────────────────────────────────────────────────────────────
 
+build_ui() {
+  echo "Building frontend..."
+  cd "$REPO_ROOT"
+  if ! pnpm build > /dev/null 2>&1; then
+    echo "Error: Frontend build failed. Run 'pnpm build' to see the error."
+    exit 1
+  fi
+  if [[ ! -f "$REPO_ROOT/dist/index.html" ]]; then
+    echo "Error: Build completed but dist/index.html was not produced."
+    exit 1
+  fi
+  echo "✓ Frontend built to $REPO_ROOT/dist"
+}
+
 install_daemon() {
   # Preflight checks
   if [[ ! -f "$TSX_BIN" ]]; then
@@ -41,6 +60,9 @@ install_daemon() {
     echo "Error: Service entry point not found at $ENTRY_POINT"
     exit 1
   fi
+
+  # Build the frontend so the daemon can serve it
+  build_ui
 
   # Create log directory
   mkdir -p "$LOG_DIR"
@@ -180,22 +202,50 @@ show_logs() {
   fi
 }
 
+# ── Rebuild ──────────────────────────────────────────────────────────────────
+
+rebuild_daemon() {
+  if [[ ! -f "$PLIST_PATH" ]]; then
+    echo "Daemon is not installed. Run: ./scripts/daemon.sh install"
+    exit 1
+  fi
+  build_ui
+  echo "Restarting daemon to pick up the new build..."
+  launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || {
+    echo "Daemon restart failed — attempting full reload..."
+    launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+    sleep 1
+    launchctl bootstrap "gui/$(id -u)" "$PLIST_PATH"
+  }
+  echo "✓ Rebuild complete. Open http://127.0.0.1:5174"
+}
+
+# ── Open UI ──────────────────────────────────────────────────────────────────
+
+open_ui() {
+  open "http://127.0.0.1:5174"
+}
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 case "${1:-}" in
   install)   install_daemon ;;
+  rebuild)   rebuild_daemon ;;
   uninstall) uninstall_daemon ;;
   status)    check_status ;;
   logs)      show_logs ;;
+  open)      open_ui ;;
   *)
     echo "Homeroom Daemon Manager"
     echo ""
-    echo "Usage: $0 {install|uninstall|status|logs}"
+    echo "Usage: $0 {install|rebuild|uninstall|status|logs|open}"
     echo ""
-    echo "  install    Install and start the background service"
-    echo "  uninstall  Stop and remove the background service"
+    echo "  install    Build UI and install the background service"
+    echo "  rebuild    Rebuild UI and restart the service"
+    echo "  uninstall  Stop and remove the service"
     echo "  status     Check if the service is running"
     echo "  logs       Show recent service logs"
+    echo "  open       Open http://localhost:5174 in browser"
     exit 1
     ;;
 esac

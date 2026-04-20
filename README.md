@@ -67,7 +67,7 @@ See the [hermes-agent repo](https://github.com/NousResearch/hermes-agent) for pl
 
 ---
 
-## Getting started
+## Getting started (daily use)
 
 ```sh
 # Clone
@@ -77,37 +77,43 @@ cd Homeroom-Hermes
 # Install dependencies (pnpm is required for the monorepo workspace)
 pnpm install
 
-# Start both the backend service and UI
-pnpm start
+# One-time install: builds the UI and registers the background daemon
+pnpm daemon:install
 
-# Or start them separately:
-#   Terminal 1: pnpm service
-#   Terminal 2: pnpm dev
+# Optional: create a Homeroom.app icon you can drag to your dock
+pnpm app:install
 ```
 
-Open `http://localhost:5173`.
+From now on, Homeroom is a daily-use app:
 
-### Run as a background service (recommended)
+- **One process**, running in the background, automatically on login
+- **One URL**: http://localhost:5174 serves both the UI and the API
+- **No terminal needed**. Just click the Homeroom app in your dock, or bookmark the URL
+- **Always on**. Close the browser tab; agents keep running on schedule
 
-To keep Homeroom running 24/7 without an open terminal, install it as a macOS launchd service:
+When you update the code:
 
 ```sh
-pnpm daemon:install
+pnpm daemon:rebuild   # rebuilds the UI and restarts the daemon
 ```
 
-This creates a launchd user agent that:
-- Starts the backend automatically on login
-- Restarts it if it crashes
-- Logs to `~/.homeroom/logs/`
+### Other daemon commands
 
-Other daemon commands:
 ```sh
 pnpm daemon:status      # Check if the service is running
 pnpm daemon:logs        # View recent logs
+pnpm daemon:open        # Open the UI in your default browser
 pnpm daemon:uninstall   # Stop and remove the service
 ```
 
-The UI can also be started separately with `pnpm dev` — it connects to the background service at `localhost:5174`.
+### Development mode
+
+If you want hot reload while hacking on the UI:
+
+```sh
+pnpm daemon:install   # backend runs as daemon
+pnpm dev              # vite dev server on :8080 with HMR, talks to the daemon
+```
 
 ---
 
@@ -122,6 +128,7 @@ The UI can also be started separately with `pnpm dev` — it connects to the bac
 | `HERMES_CLI_PATH` | `hermes` | Path to hermes binary |
 | `HERMES_TIMEOUT_SECONDS` | `120` | Max seconds per agent turn |
 | `VAULT_PATH` | `~/.homeroom/vault` | Local Obsidian-compatible vault path |
+| `STATIC_ROOT` | `<repo>/dist` | Built frontend directory. The backend serves the UI from here. |
 | `ALLOW_REMOTE_ORIGINS` | `false` | Allow non-localhost CORS origins. **Requires `NODE_ENV=development` to take effect.** See security section. |
 | `NODE_ENV` | (unset) | Set to `development` to enable remote origin CORS when `ALLOW_REMOTE_ORIGINS=true` |
 | `LOG_LEVEL` | `info` | Fastify log level |
