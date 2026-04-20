@@ -97,29 +97,54 @@ export function subscribe(fn: Listener): () => void {
   return () => { listeners.delete(fn); };
 }
 
+/**
+ * Thrown when durable event persistence fails. The caller's state change
+ * should be treated as unsuccessful: whatever mutation emitted this event
+ * must either be rolled back or retried, because the event is not replayable.
+ *
+ * This enforces the reproducibility rule: a visible UI state change must not
+ * happen without a durable event to back it up.
+ */
+export class EventPersistenceError extends Error {
+  constructor(message: string, public readonly cause: unknown) {
+    super(message);
+    this.name = "EventPersistenceError";
+  }
+}
+
 export function emit<T extends EventType>(type: T, payload: EventPayload<T>): StreamEvent {
-  sequenceCounter += 1;
+  const nextSequence = sequenceCounter + 1;
   const event: StreamEvent = {
-    sequence: sequenceCounter,
+    sequence: nextSequence,
     type,
     createdAt: new Date().toISOString(),
     payload,
   };
 
-  // Durable log first (so replay is correct even if a listener crashes)
+  // Durable log must succeed before we notify any listener. If it fails, we
+  // do not advance the sequence counter and we do not deliver. The caller
+  // sees the exception and handles it.
   if (durableSink) {
     try {
       durableSink(event);
-    } catch {
-      // Never let logging errors break emission
+    } catch (err) {
+      throw new EventPersistenceError(
+        `Failed to persist event ${type} — not emitted`,
+        err,
+      );
     }
   }
+
+  // Only commit the sequence after successful persistence.
+  sequenceCounter = nextSequence;
 
   for (const fn of listeners) {
     try {
       fn(event);
     } catch {
-      // Don't let a broken listener crash the emitter
+      // Don't let a broken listener crash other listeners. Delivery failure
+      // to an in-process listener is still safe because the event is durable
+      // and any missed listener can catch up via /api/events?since=.
     }
   }
 

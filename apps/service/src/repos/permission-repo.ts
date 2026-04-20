@@ -81,9 +81,14 @@ export function createPermissionRepo(db: Db) {
             dataScopes: JSON.stringify(data.dataScopes ?? []),
             networkAccess: modeForDb ? modeForDb !== "off" : (data.networkAccess ?? false),
             networkAccessMode: modeForDb ?? "off",
-            requiresApprovalFor: JSON.stringify(
-              data.requiresApprovalFor ?? ["file:write", "shell:exec"],
-            ),
+            // Only values this codebase actually enforces today:
+            //   "schedule" | "background" | "autonomous" -- pre-dispatch gates
+            //   for non-manual triggers. Any other string here is metadata
+            //   only (displayed in the UI, exported in TOOLS.md, but not
+            //   acted on at dispatch). Default empty: no implied enforcement.
+            //
+            // See ENFORCED_APPROVAL_KINDS and run-service.shouldGate.
+            requiresApprovalFor: JSON.stringify(data.requiresApprovalFor ?? []),
             backgroundAllowed: data.backgroundAllowed ?? false,
             createdAt: ts,
             updatedAt: ts,

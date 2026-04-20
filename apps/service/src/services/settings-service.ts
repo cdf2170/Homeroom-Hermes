@@ -1,6 +1,19 @@
+/**
+ * settings-service.ts
+ *
+ * The settings service now reads provider connection state from the encrypted
+ * credential store (the same store the adapter reads at dispatch time). This
+ * guarantees that "connected" in /api/settings always means "Hermes has a
+ * usable key for this provider" -- the two views can't drift.
+ *
+ * The old `providerKey` update path has been removed. Credentials are only
+ * writable via /api/credentials/:provider, which goes to the encrypted store.
+ */
+
 import type { SettingsRepo } from "../repos/settings-repo.js";
 import type { UpdateSettingsRequest } from "@homeroom/contracts";
 import type { SettingsView } from "@homeroom/contracts";
+import { listCredentials } from "../lib/credentials.js";
 
 const KNOWN_PROVIDERS = [
   { id: "anthropic", label: "Anthropic (Claude)" },
@@ -9,36 +22,40 @@ const KNOWN_PROVIDERS = [
   { id: "local", label: "Local (Ollama)" },
 ];
 
-function maskKey(key: string): string {
-  if (key.length <= 8) return "••••••••";
-  return key.slice(0, 4) + "••••" + key.slice(-4);
-}
-
 export function createSettingsService(settingsRepo: SettingsRepo) {
   return {
-    get(): SettingsView {
+    async get(): Promise<SettingsView> {
       const row = settingsRepo.get();
+
+      // Read from the encrypted credential store -- the same source the
+      // hermes adapter uses at runtime. A provider is reported "connected"
+      // iff there is actually a key Hermes can use.
+      const stored = await listCredentials();
+      const storedByLowerId = new Map<string, typeof stored[number]>();
+      for (const c of stored) {
+        storedByLowerId.set(c.provider.toLowerCase(), c);
+      }
+
       return {
         defaultRuntimeMode: row.defaultRuntimeMode as SettingsView["defaultRuntimeMode"],
         defaultSmartLevel: row.defaultSmartLevel as SettingsView["defaultSmartLevel"],
         defaultSafetyLevel: row.defaultSafetyLevel as SettingsView["defaultSafetyLevel"],
         openclawWorkspacePath: row.openclawWorkspacePath,
         providers: KNOWN_PROVIDERS.map((p) => {
-          const meta = row.providerMeta[p.id];
+          const cred = storedByLowerId.get(p.id.toLowerCase());
           return {
             id: p.id,
             label: p.label,
-            connected: !!meta?.maskedKey,
-            maskedKey: meta?.maskedKey ?? null,
-            lastVerifiedAt: meta?.lastVerifiedAt ?? null,
+            connected: !!cred,
+            maskedKey: cred?.masked ?? null,
+            lastVerifiedAt: cred?.updatedAt ?? null,
           };
         }),
         updatedAt: row.updatedAt,
       };
     },
 
-    update(req: UpdateSettingsRequest): SettingsView {
-      const current = settingsRepo.get();
+    async update(req: UpdateSettingsRequest): Promise<SettingsView> {
       const patch: Parameters<SettingsRepo["update"]>[0] = {};
 
       if (req.defaultRuntimeMode) patch.defaultRuntimeMode = req.defaultRuntimeMode;
@@ -47,15 +64,14 @@ export function createSettingsService(settingsRepo: SettingsRepo) {
       if (req.openclawWorkspacePath !== undefined)
         patch.openclawWorkspacePath = req.openclawWorkspacePath;
 
+      // req.providerKey is intentionally ignored. Provider credentials are
+      // managed only through POST /api/credentials/:provider so the encrypted
+      // store is the single source of truth.
       if (req.providerKey) {
-        const { providerId, key } = req.providerKey;
-        // Store only masked preview — TODO(phase-5): store real key in keychain
-        const providerMeta = { ...current.providerMeta };
-        providerMeta[providerId] = {
-          maskedKey: maskKey(key),
-          lastVerifiedAt: new Date().toISOString(),
-        };
-        patch.providerMeta = providerMeta;
+        console.warn(
+          "[settings] providerKey in PATCH /api/settings is ignored. " +
+          "Use POST /api/credentials/:provider to save credentials.",
+        );
       }
 
       settingsRepo.update(patch);

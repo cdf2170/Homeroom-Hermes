@@ -6,7 +6,7 @@ import { ServiceError } from "../lib/errors.js";
 export function buildSettingsRoutes(settingsService: SettingsService): FastifyPluginAsync {
   return async (app) => {
     app.get("/api/settings", async (_req, reply) => {
-      return reply.send(settingsService.get());
+      return reply.send(await settingsService.get());
     });
 
     app.patch("/api/settings", async (req, reply) => {
@@ -14,7 +14,7 @@ export function buildSettingsRoutes(settingsService: SettingsService): FastifyPl
       if (!parsed.success) {
         throw new ServiceError(parsed.error.message, "VALIDATION_ERROR", 400);
       }
-      return reply.send(settingsService.update(parsed.data));
+      return reply.send(await settingsService.update(parsed.data));
     });
   };
 }

@@ -1,9 +1,28 @@
 /**
  * approval-repo.ts
  *
- * Pre-dispatch and mid-run approval gates. A run is held in `awaiting_approval`
- * until an associated approval row resolves, at which point the run either
- * proceeds (approve) or is cancelled (deny).
+ * Approval gates. A run is held in `awaiting_approval` until an associated
+ * approval row resolves, at which point the run either proceeds (approve)
+ * or is cancelled (deny).
+ *
+ * Kinds and what they mean in this codebase today:
+ *
+ *   pre_dispatch -- real. Fires before the adapter is invoked. Wired for
+ *                   autonomous triggers (schedule / background / event)
+ *                   when the agent's requiresApprovalFor includes one of
+ *                   "schedule" | "background" | "autonomous".
+ *
+ *   send         -- reserved for mid-run approval of outbound actions
+ *                   (e.g., sending an email). NOT YET ENFORCED. The backend
+ *                   does not intercept outbound tool calls today. Kept in
+ *                   the schema so existing DB rows remain valid and so the
+ *                   contract does not need to break when we wire this.
+ *
+ *   network      -- reserved for mid-run approval of a network request.
+ *                   NOT YET ENFORCED. Same reasoning as `send`.
+ *
+ * See apps/service/src/services/run-service.ts:shouldGate for the only
+ * gate that actually fires at dispatch.
  */
 
 import { eq, desc, isNull, and } from "drizzle-orm";
@@ -13,7 +32,12 @@ import { newId } from "../lib/ids.js";
 import { now } from "../lib/time.js";
 import { NotFoundError } from "../lib/errors.js";
 
+/** All kinds the schema accepts. Only `pre_dispatch` is enforced today. */
 export type ApprovalKind = "pre_dispatch" | "send" | "network";
+
+/** Kinds that actually gate a run at this moment. */
+export const ENFORCED_APPROVAL_KINDS: readonly ApprovalKind[] = ["pre_dispatch"] as const;
+
 export type ApprovalResolution = "approve" | "deny" | null;
 
 export type ApprovalPreview =

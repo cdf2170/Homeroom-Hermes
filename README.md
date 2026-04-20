@@ -373,7 +373,7 @@ All endpoints live under `/api/`.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/snapshot` | Full canonical state plus current cursor |
+| `GET /api/recent-state` | Recent slice of canonical state (last 200 runs + audit, all agents, pending approvals) plus current cursor. For full history, use `/api/events`. `GET /api/snapshot` is a legacy alias. |
 | `GET /api/events/stream?since=N` | SSE live stream with replay support |
 | `GET /api/events?since=N[&through=M]` | Targeted event replay |
 | `GET /api/agents` | List agents |

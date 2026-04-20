@@ -23,6 +23,8 @@ export function createRunService(
   approvalService: ApprovalService,
   adapter: RuntimeAdapter,
   auditService: AuditService,
+  /** Max seconds to wait for an adapter run to settle. Sourced from config. */
+  timeoutSeconds: number,
 ) {
   /**
    * Single place where scene_state and scene_room_id are written. Updates the
@@ -50,25 +52,32 @@ export function createRunService(
   }
 
   /**
-   * Check whether this trigger needs pre-dispatch approval based on the
-   * agent's permission profile. Returns the approval kind if a gate applies,
-   * or null if the run may proceed immediately.
+   * Decide whether this run needs a pre-dispatch approval gate.
+   *
+   * Today this is the ONLY enforced approval path. It gates autonomous runs
+   * (schedule / background / event triggers) when the agent's
+   * requiresApprovalFor list contains one of: "schedule", "background",
+   * or "autonomous".
+   *
+   * Manual triggers never gate here. Tool-level and mid-run gates
+   * ("send", "network") are NOT enforced at dispatch because the backend
+   * does not intercept adapter tool calls today.
    */
   function shouldGate(
     trigger: RunRecord["trigger"],
     agentId: string,
-  ): { kind: "pre_dispatch" | "send" | "network"; reason: string } | null {
+  ): { kind: "pre_dispatch"; reason: string } | null {
     const perms = permissionRepo.findByAgentId(agentId);
     if (!perms) return null;
 
     const gates = (perms.requiresApprovalFor ?? []) as string[];
+    const isAutonomous = trigger === "schedule" || trigger === "background" || trigger === "event";
+    const gatesAutonomous =
+      gates.includes("schedule") ||
+      gates.includes("background") ||
+      gates.includes("autonomous");
 
-    // Schedule / background triggers: gate if the profile requires approval
-    // for autonomous execution.
-    if (
-      (trigger === "schedule" || trigger === "background" || trigger === "event") &&
-      (gates.includes("schedule") || gates.includes("background") || gates.includes("autonomous"))
-    ) {
+    if (isAutonomous && gatesAutonomous) {
       return {
         kind: "pre_dispatch",
         reason: `Agent requires approval before ${trigger} runs.`,
@@ -91,8 +100,6 @@ export function createRunService(
       runRepo.update(record.id, { status: "running" } as Partial<RunRecord>);
     }
     transitionAgent(agentId, "working", "focus", "run dispatched");
-
-    const timeoutSeconds = 120;
 
     try {
       const handle = await adapter.runAgent(backendRef, input, agent.modelRef ?? undefined, policy);

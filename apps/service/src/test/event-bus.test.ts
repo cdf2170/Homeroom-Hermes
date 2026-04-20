@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { subscribe, emit, initSequenceCursor, currentSequence, setDurableSink } from "../lib/event-bus.js";
+import { subscribe, emit, initSequenceCursor, currentSequence, setDurableSink, EventPersistenceError } from "../lib/event-bus.js";
 
 describe("EventBus", () => {
   beforeEach(() => {
@@ -101,6 +101,44 @@ describe("EventBus", () => {
     emit("run.started", { runId: "r1", agentId: "a1", trigger: "manual" });
 
     expect(listener.mock.calls[0]![0].sequence).toBe(43);
+    unsub();
+  });
+
+  // ── Fail-closed durability ──────────────────────────────────────────────────
+
+  it("fails closed when the durable sink throws: no listener is notified and the sequence does not advance", () => {
+    setDurableSink(() => { throw new Error("disk full"); });
+    const listener = vi.fn();
+    const unsub = subscribe(listener);
+
+    const before = currentSequence();
+
+    expect(() => {
+      emit("run.started", { runId: "r1", agentId: "a1", trigger: "manual" });
+    }).toThrow(EventPersistenceError);
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(currentSequence()).toBe(before);
+    unsub();
+  });
+
+  it("after a persistence failure, a later successful emit uses the next unused sequence", () => {
+    const captured: unknown[] = [];
+    setDurableSink(() => { throw new Error("transient"); });
+
+    const listener = vi.fn();
+    const unsub = subscribe(listener);
+
+    expect(() => emit("agent.updated", { agentId: "a1" })).toThrow(EventPersistenceError);
+
+    // Now the sink recovers
+    setDurableSink((event) => { captured.push(event); });
+
+    emit("agent.updated", { agentId: "a1" });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0]![0].sequence).toBe(1);
+    expect((captured[0] as any).sequence).toBe(1);
     unsub();
   });
 });

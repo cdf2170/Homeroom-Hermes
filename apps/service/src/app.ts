@@ -143,6 +143,7 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
     approvalService,
     adapter,
     auditService,
+    config.hermesTimeoutSeconds,
   );
   const schedulerService = createSchedulerService(scheduleRepo, agentRepo, runService);
   const scheduleService = createScheduleService(scheduleRepo, agentRepo, schedulerService);
