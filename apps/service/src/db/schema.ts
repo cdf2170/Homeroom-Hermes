@@ -186,6 +186,67 @@ export const auditEvents = sqliteTable(
   ],
 );
 
+// ─── Stream Events (durable event log) ───────────────────────────────────────
+//
+// Every event emitted by the bus is appended here with a monotonic sequence
+// number. Used for SSE replay on reconnect and gap recovery.
+
+export const streamEvents = sqliteTable(
+  "stream_events",
+  {
+    sequence: integer("sequence").primaryKey({ autoIncrement: true }),
+    type: text("type").notNull(),
+    createdAt: text("created_at").notNull(),
+    payload: text("payload").notNull(), // JSON-serialized payload
+  },
+  (t) => [
+    index("stream_events_type_idx").on(t.type),
+    index("stream_events_created_at_idx").on(t.createdAt),
+  ],
+);
+
+// ─── Run Steps (step-level trace of a run) ───────────────────────────────────
+//
+// Every structured step within a run -- thought, tool_call, tool_result,
+// message, error. Rendered in the Run Trajectory view.
+
+export const runSteps = sqliteTable(
+  "run_steps",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id").notNull(),
+    seq: integer("seq").notNull(),
+    kind: text("kind").notNull(), // 'thought' | 'tool_call' | 'tool_result' | 'message' | 'error'
+    content: text("content").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    index("run_steps_run_id_seq_idx").on(t.runId, t.seq),
+  ],
+);
+
+// ─── Approvals (pre-dispatch and mid-run gates) ──────────────────────────────
+
+export const approvals = sqliteTable(
+  "approvals",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id").notNull(),
+    agentId: text("agent_id").notNull(),
+    kind: text("kind").notNull(), // 'pre_dispatch' | 'send' | 'network'
+    reason: text("reason").notNull(),
+    preview: text("preview"), // JSON-serialized ApprovalPreview or null
+    createdAt: text("created_at").notNull(),
+    resolvedAt: text("resolved_at"),
+    resolution: text("resolution"), // 'approve' | 'deny' | null
+  },
+  (t) => [
+    index("approvals_agent_id_idx").on(t.agentId),
+    index("approvals_run_id_idx").on(t.runId),
+    index("approvals_resolution_idx").on(t.resolution),
+  ],
+);
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export const settings = sqliteTable("settings", {

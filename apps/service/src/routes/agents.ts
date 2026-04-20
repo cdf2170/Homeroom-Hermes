@@ -4,6 +4,7 @@ import type { RunService } from "../services/run-service.js";
 import type { ScheduleService } from "../services/schedule-service.js";
 import type { TrustService } from "../services/trust-service.js";
 import type { AuditService } from "../services/audit-service.js";
+import type { RunStepRepo } from "../repos/run-step-repo.js";
 import {
   CreateAgentRequest,
   UpdateAgentRequest,
@@ -20,6 +21,7 @@ export function buildAgentRoutes(
   scheduleService: ScheduleService,
   trustService: TrustService,
   auditService: AuditService,
+  runStepRepo: RunStepRepo,
 ): FastifyPluginAsync {
   return async (app) => {
     // GET /api/agents
@@ -134,6 +136,13 @@ export function buildAgentRoutes(
     app.get<{ Querystring: { limit?: string } }>("/api/runs", async (req, reply) => {
       const limit = req.query.limit ? parseInt(req.query.limit, 10) : 100;
       return reply.send(runService.listAll(limit).map(toRunView));
+    });
+
+    // GET /api/runs/:id/steps — step-level trace for one run
+    app.get<{ Params: { id: string } }>("/api/runs/:id/steps", async (req, reply) => {
+      // Throws if run not found
+      runService.getById(req.params.id);
+      return reply.send(runStepRepo.findByRunId(req.params.id));
     });
   };
 }

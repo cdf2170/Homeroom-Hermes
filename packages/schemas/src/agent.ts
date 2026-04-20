@@ -7,6 +7,7 @@ import {
   RuntimeMode,
   RoomId,
   RunStatus,
+  SceneState,
 } from "./enums.js";
 
 export const AgentSchema = z.object({
@@ -20,8 +21,8 @@ export const AgentSchema = z.object({
   enabled: z.boolean().default(false),
   backgroundEnabled: z.boolean().default(false),
   status: AgentStatus.default("offline"),
-  sceneRoomId: RoomId.default("focus_room"),
-  sceneState: z.string().default("idle"),
+  sceneRoomId: RoomId.default("focus"),
+  sceneState: SceneState.default("idle"),
   lastRunAt: z.string().datetime().nullable().default(null),
   lastRunStatus: RunStatus.nullable().default(null),
   permissionProfileId: z.string().uuid().nullable().default(null),

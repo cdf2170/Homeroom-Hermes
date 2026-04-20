@@ -8,6 +8,15 @@ import { now } from "../lib/time.js";
 type Row = typeof permissionProfiles.$inferSelect;
 
 function rowToProfile(row: Row): PermissionProfile {
+  // Historical values for network_access_mode: 'none' | 'restricted' | 'open'.
+  // Map to the v2 vocabulary: 'off' | 'limited' | 'open'.
+  const rawMode = row.networkAccessMode ?? "none";
+  const mode: PermissionProfile["networkAccessMode"] =
+    rawMode === "none" ? "off"
+    : rawMode === "restricted" ? "limited"
+    : rawMode === "off" || rawMode === "limited" || rawMode === "open" ? rawMode
+    : "off";
+
   return {
     id: row.id,
     agentId: row.agentId,
@@ -15,6 +24,7 @@ function rowToProfile(row: Row): PermissionProfile {
     toolScopes: JSON.parse(row.toolScopes) as string[],
     dataScopes: JSON.parse(row.dataScopes) as string[],
     networkAccess: row.networkAccess,
+    networkAccessMode: mode,
     requiresApprovalFor: JSON.parse(row.requiresApprovalFor) as string[],
     backgroundAllowed: row.backgroundAllowed,
     createdAt: row.createdAt,
@@ -42,6 +52,9 @@ export function createPermissionRepo(db: Db) {
 
       const ts = now();
 
+      // Map v2 mode values to whatever the DB stores
+      const modeForDb = data.networkAccessMode ? dbModeFor(data.networkAccessMode) : undefined;
+
       if (existing) {
         db.update(permissionProfiles)
           .set({
@@ -51,6 +64,9 @@ export function createPermissionRepo(db: Db) {
             requiresApprovalFor: data.requiresApprovalFor
               ? JSON.stringify(data.requiresApprovalFor)
               : existing.requiresApprovalFor,
+            networkAccessMode: modeForDb ?? existing.networkAccessMode,
+            // Keep the boolean in sync with the mode
+            networkAccess: modeForDb ? modeForDb !== "off" : existing.networkAccess,
             updatedAt: ts,
           })
           .where(eq(permissionProfiles.agentId, agentId))
@@ -63,8 +79,8 @@ export function createPermissionRepo(db: Db) {
             safetyLevel: data.safetyLevel ?? "strict",
             toolScopes: JSON.stringify(data.toolScopes ?? []),
             dataScopes: JSON.stringify(data.dataScopes ?? []),
-            networkAccess: data.networkAccess ?? false,
-            networkAccessMode: "none",
+            networkAccess: modeForDb ? modeForDb !== "off" : (data.networkAccess ?? false),
+            networkAccessMode: modeForDb ?? "off",
             requiresApprovalFor: JSON.stringify(
               data.requiresApprovalFor ?? ["file:write", "shell:exec"],
             ),
@@ -85,3 +101,10 @@ export function createPermissionRepo(db: Db) {
 }
 
 export type PermissionRepo = ReturnType<typeof createPermissionRepo>;
+
+/** Map v2 vocab ('off' | 'limited' | 'open') to whatever historical value the DB has stored. */
+function dbModeFor(mode: "off" | "limited" | "open"): "off" | "limited" | "open" {
+  // For now we store the v2 value directly; old rows with 'none'/'restricted'
+  // are normalized on read by rowToProfile.
+  return mode;
+}

@@ -22,6 +22,13 @@
       "when": 1776163200000,
       "tag": "0002_add_appearance",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1776500000000,
+      "tag": "0003_stream_events_steps_approvals",
+      "breakpoints": true
     }
   ]
 }

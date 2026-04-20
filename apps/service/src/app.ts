@@ -19,6 +19,13 @@ import { createTrustRepo } from "./repos/trust-repo.js";
 import { createAuditRepo } from "./repos/audit-repo.js";
 import { createSettingsRepo } from "./repos/settings-repo.js";
 import { createRuntimeProjectionRepo } from "./repos/runtime-projection-repo.js";
+import { createStreamEventRepo } from "./repos/stream-event-repo.js";
+import { createRunStepRepo } from "./repos/run-step-repo.js";
+import { createApprovalRepo } from "./repos/approval-repo.js";
+import { createApprovalService } from "./services/approval-service.js";
+import { buildApprovalsRoutes } from "./routes/approvals.js";
+import { buildSnapshotRoute } from "./routes/snapshot.js";
+import { initSequenceCursor, setDurableSink } from "./lib/event-bus.js";
 
 // Services
 import { createAuditService } from "./services/audit-service.js";
@@ -109,13 +116,34 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   const auditRepo = createAuditRepo(db);
   const settingsRepo = createSettingsRepo(db);
   const runtimeProjectionRepo = createRuntimeProjectionRepo(db);
+  const streamEventRepo = createStreamEventRepo(db);
+  const runStepRepo = createRunStepRepo(db);
+  const approvalRepo = createApprovalRepo(db);
+
+  // Wire the event bus to the durable log. Must happen before any service
+  // emits anything. Also restore the sequence counter from the last persisted
+  // event so new emissions continue the monotonic chain across restarts.
+  initSequenceCursor(streamEventRepo.maxSequence());
+  setDurableSink((event) => {
+    streamEventRepo.append(event);
+  });
 
   // Wire up services
   const auditService = createAuditService(auditRepo);
   const trustService = createTrustService(trustRepo);
   const runtimeService = createRuntimeService(adapter);
   const settingsService = createSettingsService(settingsRepo);
-  const runService = createRunService(runRepo, agentRepo, runtimeProjectionRepo, adapter, auditService);
+  const approvalService = createApprovalService(approvalRepo, runRepo, auditService);
+  const runService = createRunService(
+    runRepo,
+    agentRepo,
+    runtimeProjectionRepo,
+    runStepRepo,
+    permissionRepo,
+    approvalService,
+    adapter,
+    auditService,
+  );
   const schedulerService = createSchedulerService(scheduleRepo, agentRepo, runService);
   const scheduleService = createScheduleService(scheduleRepo, agentRepo, schedulerService);
   const resolvedVaultRoot = vaultRoot ?? resolve(homedir(), ".homeroom", "vault");
@@ -146,13 +174,15 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   // Register API routes first (so they take precedence over static files)
   await app.register(buildRuntimeRoutes(runtimeService));
   await app.register(buildSettingsRoutes(settingsService));
-  await app.register(buildAgentRoutes(agentService, runService, scheduleService, trustService, auditService));
+  await app.register(buildAgentRoutes(agentService, runService, scheduleService, trustService, auditService, runStepRepo));
   await app.register(buildTrustRoutes(trustService));
   await app.register(buildAuditRoutes(auditService));
   await app.register(buildFrontdeskRoutes(frontdeskService));
-  await app.register(buildEventsRoutes());
+  await app.register(buildEventsRoutes(streamEventRepo));
   await app.register(buildCredentialsRoutes());
   await app.register(buildVaultRoutes(vaultService, agentService, memoryRepo, ruleRepo, permissionRepo, scheduleRepo, runRepo));
+  await app.register(buildApprovalsRoutes(approvalService));
+  await app.register(buildSnapshotRoute(agentService, runService, approvalService, auditService, runStepRepo, trustService));
 
   // Serve the built frontend at the root.
   // The frontend is built separately (vite build at repo root) into <repo>/dist.

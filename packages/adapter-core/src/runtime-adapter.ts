@@ -6,6 +6,12 @@ import type {
   ManagedDocSet,
 } from "./types.js";
 
+/** Execution policy that adapters must honor. */
+export interface AdapterRunPolicy {
+  /** 'off' means the spawned process MUST NOT reach the network. */
+  networkAccess?: "off" | "limited" | "open";
+}
+
 /**
  * RuntimeAdapter defines the contract between the Homeroom service
  * and the underlying agent runtime (e.g. OpenClaw).
@@ -29,10 +35,18 @@ export interface RuntimeAdapter {
   /**
    * Start a run for an agent.
    * Returns a handle immediately; use getRun to poll status.
-   * @param modelRef  Optional model identifier (e.g. "anthropic/claude-3.5-sonnet").
-   *                  If provided, the adapter should prefer this model for the run.
+   * @param backendRef   Runtime reference for the agent.
+   * @param input        The user's request / task description.
+   * @param modelRef     Optional model identifier (e.g. "anthropic/claude-3.5-sonnet").
+   * @param policy       Optional execution policy. Adapters MUST honor policy.networkAccess:
+   *                     when 'off', the spawned process must not reach the network.
    */
-  runAgent(backendRef: string, input: string, modelRef?: string | null): Promise<AdapterRunHandle>;
+  runAgent(
+    backendRef: string,
+    input: string,
+    modelRef?: string | null,
+    policy?: AdapterRunPolicy,
+  ): Promise<AdapterRunHandle>;
 
   /** Cancel an in-flight run. No-op if already complete. */
   cancelRun(runRef: string): Promise<void>;

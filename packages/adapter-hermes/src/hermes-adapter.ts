@@ -161,7 +161,12 @@ export class HermesAdapter implements RuntimeAdapter {
     };
   }
 
-  async runAgent(backendRef: string, input: string, modelRef?: string | null): Promise<AdapterRunHandle> {
+  async runAgent(
+    backendRef: string,
+    input: string,
+    modelRef?: string | null,
+    policy?: import("@homeroom/adapter-core").AdapterRunPolicy,
+  ): Promise<AdapterRunHandle> {
     const runRef = `hrm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     const handle: RunState = {
@@ -176,7 +181,7 @@ export class HermesAdapter implements RuntimeAdapter {
     this.runs.set(runRef, handle);
 
     // Fire-and-forget: spawn the agent turn, update handle when done.
-    this._execute(runRef, backendRef, input, modelRef ?? undefined).catch(() => {});
+    this._execute(runRef, backendRef, input, modelRef ?? undefined, policy).catch(() => {});
 
     return {
       runRef: handle.runRef,
@@ -188,7 +193,13 @@ export class HermesAdapter implements RuntimeAdapter {
     };
   }
 
-  private async _execute(runRef: string, backendRef: string, input: string, modelRef?: string): Promise<void> {
+  private async _execute(
+    runRef: string,
+    backendRef: string,
+    input: string,
+    modelRef?: string,
+    policy?: import("@homeroom/adapter-core").AdapterRunPolicy,
+  ): Promise<void> {
     const handle = this.runs.get(runRef);
     if (!handle) return;
 
@@ -209,7 +220,25 @@ export class HermesAdapter implements RuntimeAdapter {
       }
     }
 
-    const mergedEnv = { ...process.env, TERM: "dumb", NO_COLOR: "1", ...providerEnv };
+    const mergedEnv: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+      TERM: "dumb",
+      NO_COLOR: "1",
+      ...providerEnv,
+    };
+
+    // Enforce network policy. When networkAccess is 'off', point HTTP(S)_PROXY
+    // at a dead port so every outbound connection fails at the socket layer.
+    // This is the mechanical form of the "safe by default" principle: the
+    // constraint is not aspirational, it is real.
+    if (policy?.networkAccess === "off") {
+      mergedEnv.HTTP_PROXY = "http://127.0.0.1:1";
+      mergedEnv.HTTPS_PROXY = "http://127.0.0.1:1";
+      mergedEnv.http_proxy = "http://127.0.0.1:1";
+      mergedEnv.https_proxy = "http://127.0.0.1:1";
+      mergedEnv.NO_PROXY = "";
+      mergedEnv.no_proxy = "";
+    }
 
     // hermes chat -q "<input>" --quiet [-m MODEL]
     const args = ["chat", "-q", input, "--quiet"];

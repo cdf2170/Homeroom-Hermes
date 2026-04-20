@@ -11,6 +11,7 @@ import type { CreateAgentRequest, UpdateAgentRequest } from "@homeroom/contracts
 import type { AgentProfile } from "@homeroom/domain";
 import type { VaultService } from "./vault-service.js";
 import { now } from "../lib/time.js";
+import { emit } from "../lib/event-bus.js";
 
 // ── Appearance helpers ────────────────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ export function createAgentService(
         enabled: false,
         backgroundEnabled: false,
         status: "offline",
-        sceneRoomId: "focus_room",
+        sceneRoomId: "focus",
         sceneState: "idle",
         lastRunAt: null,
         lastRunStatus: null,
@@ -145,6 +146,8 @@ export function createAgentService(
         runId: null,
       });
 
+      emit("agent.created", { agentId: profile.id, name: profile.name });
+
       await runTrustChecks(profile.id);
       syncVault(profile.id);
       return profile;
@@ -154,7 +157,7 @@ export function createAgentService(
       const before = agentRepo.findById(id);
       const updated = agentRepo.update(id, req);
 
-      // Detect enable/disable state changes for specific audit events
+      // Detect enable/disable state changes for specific audit + event bus events
       if (req.enabled !== undefined && req.enabled !== before.enabled) {
         auditService.append({
           actor: "user",
@@ -166,6 +169,8 @@ export function createAgentService(
           permissionContext: null,
           runId: null,
         });
+        if (req.enabled) emit("agent.enabled", { agentId: id });
+        else emit("agent.disabled", { agentId: id });
       }
 
       auditService.append({
@@ -178,6 +183,8 @@ export function createAgentService(
         permissionContext: null,
         runId: null,
       });
+
+      emit("agent.updated", { agentId: id });
 
       await runTrustChecks(id);
       syncVault(id);
@@ -207,6 +214,8 @@ export function createAgentService(
         permissionContext: null,
         runId: null,
       });
+
+      emit("agent.deleted", { agentId: id, name: profileName });
     },
 
     /** Called on first boot — imports mock/adapter agents as Homeroom profiles. */
@@ -227,7 +236,7 @@ export function createAgentService(
           enabled: false,
           backgroundEnabled: false,
           status: "offline",
-          sceneRoomId: "focus_room",
+          sceneRoomId: "focus",
           sceneState: "idle",
           lastRunAt: null,
           lastRunStatus: null,

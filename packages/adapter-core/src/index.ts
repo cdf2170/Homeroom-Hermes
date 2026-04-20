@@ -1,4 +1,4 @@
-export type { RuntimeAdapter } from "./runtime-adapter.js";
+export type { RuntimeAdapter, AdapterRunPolicy } from "./runtime-adapter.js";
 export type {
   AdapterHealth,
   AdapterModelInfo,

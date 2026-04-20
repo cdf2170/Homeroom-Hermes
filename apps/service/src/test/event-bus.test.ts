@@ -1,15 +1,37 @@
-import { describe, it, expect, vi } from "vitest";
-import { subscribe, emit } from "../lib/event-bus.js";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { subscribe, emit, initSequenceCursor, currentSequence, setDurableSink } from "../lib/event-bus.js";
 
 describe("EventBus", () => {
-  it("delivers events to subscribers", () => {
+  beforeEach(() => {
+    initSequenceCursor(0);
+    setDurableSink(null);
+  });
+
+  it("delivers events to subscribers with sequence numbers", () => {
     const listener = vi.fn();
     const unsub = subscribe(listener);
 
-    emit("run.started", { runId: "r1", agentId: "a1" });
+    emit("run.started", { runId: "r1", agentId: "a1", trigger: "manual" });
 
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(listener).toHaveBeenCalledWith("run.started", { runId: "r1", agentId: "a1" });
+    const event = listener.mock.calls[0]![0];
+    expect(event.type).toBe("run.started");
+    expect(event.payload).toEqual({ runId: "r1", agentId: "a1", trigger: "manual" });
+    expect(event.sequence).toBe(1);
+    expect(typeof event.createdAt).toBe("string");
+    unsub();
+  });
+
+  it("assigns monotonic sequence numbers across emissions", () => {
+    const listener = vi.fn();
+    const unsub = subscribe(listener);
+
+    emit("run.started", { runId: "r1", agentId: "a1", trigger: "manual" });
+    emit("run.completed", { runId: "r1", agentId: "a1", status: "completed" });
+    emit("agent.updated", { agentId: "a1" });
+
+    const sequences = listener.mock.calls.map((c: any) => c[0].sequence);
+    expect(sequences).toEqual([1, 2, 3]);
     unsub();
   });
 
@@ -51,5 +73,34 @@ describe("EventBus", () => {
 
     unsub1();
     unsub2();
+  });
+
+  it("writes to the durable sink before delivering to subscribers", () => {
+    const sunk: unknown[] = [];
+    setDurableSink((event) => sunk.push(event));
+
+    emit("agent.transition", {
+      agentId: "a1",
+      sceneState: "working",
+      sceneRoomId: "mail",
+    });
+
+    expect(sunk.length).toBe(1);
+    const event = sunk[0] as any;
+    expect(event.type).toBe("agent.transition");
+    expect(event.sequence).toBe(1);
+  });
+
+  it("initSequenceCursor resumes the counter after a restart", () => {
+    initSequenceCursor(42);
+    expect(currentSequence()).toBe(42);
+
+    const listener = vi.fn();
+    const unsub = subscribe(listener);
+
+    emit("run.started", { runId: "r1", agentId: "a1", trigger: "manual" });
+
+    expect(listener.mock.calls[0]![0].sequence).toBe(43);
+    unsub();
   });
 });

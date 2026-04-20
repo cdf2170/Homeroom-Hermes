@@ -15,14 +15,35 @@ export const AgentStatus = z.enum([
 ]);
 export type AgentStatus = z.infer<typeof AgentStatus>;
 
+/**
+ * SceneState is the canonical posture the avatar is showing in the office.
+ * Six values, mutually exclusive. This is the field the office floor plan
+ * reads to render each agent. It is written only by run-service transitions
+ * (and a few targeted handlers in agent-service on enable/disable).
+ */
+export const SceneState = z.enum([
+  "idle",
+  "queued",
+  "working",
+  "waiting_approval",
+  "error",
+  "disabled",
+]);
+export type SceneState = z.infer<typeof SceneState>;
+
+/**
+ * Office rooms. Each room represents a category of capability the agent
+ * is currently exercising. Room identity is the canonical answer to
+ * "where is this agent right now" in the office floor plan.
+ */
 export const RoomId = z.enum([
-  "focus_room",
-  "break_room",
-  "help_desk",
-  "automation_room",
-  "local_compute_room",
-  "cloud_room",
-  "lounge",
+  "focus",       // idle / thinking / no active tool
+  "mail",        // using email tool scope
+  "files",       // using file system scope
+  "web",         // using network access
+  "automation",  // triggered by a schedule
+  "outbox",      // finished action waiting on approval
+  "waiting",     // paused on an approval gate
 ]);
 export type RoomId = z.infer<typeof RoomId>;
 
@@ -55,7 +76,15 @@ export type SafetyLevel = z.infer<typeof SafetyLevel>;
 export const RunTrigger = z.enum(["manual", "schedule", "event", "background"]);
 export type RunTrigger = z.infer<typeof RunTrigger>;
 
-export const RunStatus = z.enum(["pending", "running", "completed", "failed", "cancelled"]);
+export const RunStatus = z.enum([
+  "pending",
+  "running",
+  "awaiting_approval",
+  "completed",
+  "failed",
+  "cancelled",
+  "timeout",
+]);
 export type RunStatus = z.infer<typeof RunStatus>;
 
 // --- Audit ---
@@ -72,6 +101,9 @@ export const AuditEventType = z.enum([
   "run.started",
   "run.completed",
   "run.failed",
+  "run.timeout",
+  "approval.requested",
+  "approval.resolved",
   "permission.changed",
   "schedule.changed",
   "runtime.mode_changed",
@@ -79,7 +111,7 @@ export const AuditEventType = z.enum([
 ]);
 export type AuditEventType = z.infer<typeof AuditEventType>;
 
-export const TargetType = z.enum(["agent", "run", "schedule", "permission", "runtime"]);
+export const TargetType = z.enum(["agent", "run", "schedule", "permission", "runtime", "approval"]);
 export type TargetType = z.infer<typeof TargetType>;
 
 // --- Schedules ---

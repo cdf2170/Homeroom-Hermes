@@ -141,7 +141,7 @@ export class OllamaAdapter implements RuntimeAdapter {
     };
   }
 
-  async runAgent(backendRef: string, input: string, _modelRef?: string | null): Promise<AdapterRunHandle> {
+  async runAgent(backendRef: string, input: string, _modelRef?: string | null, _policy?: unknown): Promise<AdapterRunHandle> {
     const runRef = `ollama-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     const handle: RunState = {
