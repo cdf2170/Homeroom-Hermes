@@ -217,6 +217,86 @@ describe("Trust findings surface unenforced claims", () => {
     const codes = findings.map((f) => f.code);
     expect(codes).not.toContain("MODEL_PROVIDER_NO_CREDENTIAL");
   });
+
+  // ── Paranoid additions ─────────────────────────────────────────────────────
+
+  it("flags background enabled with no schedule as dead config", () => {
+    const findings = computeAgentFindings(
+      makeAgentProfile({ enabled: true, backgroundEnabled: true }),
+      makePermission(),
+      null, // no schedule at all
+      [],
+      [],
+    );
+    const codes = findings.map((f) => f.code);
+    expect(codes).toContain("BACKGROUND_WITHOUT_SCHEDULE");
+  });
+
+  it("flags background enabled with a disabled schedule", () => {
+    const findings = computeAgentFindings(
+      makeAgentProfile({ enabled: true, backgroundEnabled: true }),
+      makePermission(),
+      { enabled: false, preset: "daily", plainEnglish: "off", backendExpression: null, nextRunAt: null, id: "s1", agentId: "test-agent", createdAt: "2026-04-20T00:00:00.000Z", updatedAt: "2026-04-20T00:00:00.000Z" } as Schedule,
+      [],
+      [],
+    );
+    const codes = findings.map((f) => f.code);
+    expect(codes).toContain("BACKGROUND_WITHOUT_SCHEDULE");
+  });
+
+  it("flags cloud runtime mode with zero connected providers", () => {
+    const findings = computeAgentFindings(
+      makeAgentProfile({ runtimeMode: "cloud", modelRef: null }),
+      makePermission(),
+      null,
+      [],
+      [],
+      new Set(), // nothing connected
+    );
+    const codes = findings.map((f) => f.code);
+    expect(codes).toContain("NO_CONNECTED_PROVIDERS");
+  });
+
+  it("does NOT flag local runtime mode when no providers are connected", () => {
+    const findings = computeAgentFindings(
+      makeAgentProfile({ runtimeMode: "local" }),
+      makePermission(),
+      null,
+      [],
+      [],
+      new Set(),
+    );
+    const codes = findings.map((f) => f.code);
+    expect(codes).not.toContain("NO_CONNECTED_PROVIDERS");
+  });
+
+  it("flags secrets found in instructions (not just memory/rules)", () => {
+    const findings = computeAgentFindings(
+      makeAgentProfile({
+        instructions: "Use this key: sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA to call the API",
+      }),
+      makePermission(),
+      null,
+      [], // empty memoryContents
+      [], // empty ruleContents
+    );
+    const codes = findings.map((f) => f.code);
+    expect(codes).toContain("SECRET_IN_CONTENT");
+  });
+
+  it("flags secrets found in environment notes", () => {
+    const findings = computeAgentFindings(
+      makeAgentProfile({
+        environmentNotes: "api_key=sk-proj-BBBBBBBBBBBBBBBBBBBBBBBBBB",
+      }),
+      makePermission(),
+      null,
+      [],
+      [],
+    );
+    const codes = findings.map((f) => f.code);
+    expect(codes).toContain("SECRET_IN_CONTENT");
+  });
 });
 
 // ── 1 & 2. Approval gates actually hold and release runs ─────────────────────

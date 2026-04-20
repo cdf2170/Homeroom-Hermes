@@ -40,7 +40,9 @@ export function createSettingsService(settingsRepo: SettingsRepo) {
         defaultRuntimeMode: row.defaultRuntimeMode as SettingsView["defaultRuntimeMode"],
         defaultSmartLevel: row.defaultSmartLevel as SettingsView["defaultSmartLevel"],
         defaultSafetyLevel: row.defaultSafetyLevel as SettingsView["defaultSafetyLevel"],
-        openclawWorkspacePath: row.openclawWorkspacePath,
+        defaultWorkspacePath: row.defaultWorkspacePath,
+        // Back-compat: mirror into the legacy name too
+        openclawWorkspacePath: row.defaultWorkspacePath,
         providers: KNOWN_PROVIDERS.map((p) => {
           const cred = storedByLowerId.get(p.id.toLowerCase());
           return {
@@ -61,8 +63,9 @@ export function createSettingsService(settingsRepo: SettingsRepo) {
       if (req.defaultRuntimeMode) patch.defaultRuntimeMode = req.defaultRuntimeMode;
       if (req.defaultSmartLevel) patch.defaultSmartLevel = req.defaultSmartLevel;
       if (req.defaultSafetyLevel) patch.defaultSafetyLevel = req.defaultSafetyLevel;
-      if (req.openclawWorkspacePath !== undefined)
-        patch.openclawWorkspacePath = req.openclawWorkspacePath;
+      // Accept either the new or the legacy field name
+      const workspacePath = req.defaultWorkspacePath ?? req.openclawWorkspacePath;
+      if (workspacePath !== undefined) patch.defaultWorkspacePath = workspacePath;
 
       // req.providerKey is intentionally ignored. Provider credentials are
       // managed only through POST /api/credentials/:provider so the encrypted

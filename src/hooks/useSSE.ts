@@ -26,7 +26,7 @@ interface SSEEvent {
  *   run.completed  → invalidate runs + agents + toast
  *   run.failed     → invalidate runs + agents + error toast
  *   agent.updated  → invalidate agents
- *   vault.synced   → invalidate vault status
+ *   mirror.synced  → invalidate mirror status (alias: vault.synced)
  */
 export function useSSE() {
   const queryClient = useQueryClient();
@@ -119,9 +119,10 @@ export function useSSE() {
           queryClient.invalidateQueries({ queryKey: qk.trust.findings() });
           break;
 
-        case 'vault.synced':
+        case 'mirror.synced':
+        case 'vault.synced': // legacy alias
           if (agentId) {
-            queryClient.invalidateQueries({ queryKey: ['vault', 'agent', agentId] });
+            queryClient.invalidateQueries({ queryKey: ['mirror', 'agent', agentId] });
           }
           break;
 

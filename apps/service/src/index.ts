@@ -18,7 +18,7 @@ const migrationsFolder = resolve(
 migrate(db, { migrationsFolder });
 
 const adapter = await buildAdapter(config);
-const { app, schedulerService } = await buildApp(db, adapter, config, config.vaultPath);
+const { app, schedulerService } = await buildApp(db, adapter, config, config.mirrorPath);
 
 await app.listen({ port: config.port, host: config.host });
 

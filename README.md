@@ -360,7 +360,8 @@ At dispatch time, the adapter honors the agent's `networkAccessMode`:
 | `ADAPTER` | `hermes` | Runtime adapter |
 | `HERMES_CLI_PATH` | `hermes` | Path to Hermes binary |
 | `HERMES_TIMEOUT_SECONDS` | `120` | Max runtime per turn |
-| `VAULT_PATH` | `~/.homeroom/vault` | Markdown mirror path |
+| `MIRROR_PATH` | `~/.homeroom/vault` | Root folder for the local markdown mirror |
+| `VAULT_PATH` | — | Legacy alias for `MIRROR_PATH`. Still honored if `MIRROR_PATH` is unset. |
 | `STATIC_ROOT` | `<repo>/dist` | Built frontend directory |
 | `ALLOW_REMOTE_ORIGINS` | `false` | Allow non-localhost CORS in dev only |
 | `NODE_ENV` | (unset) | Must be `development` to allow remote origins |
@@ -391,8 +392,8 @@ All endpoints live under `/api/`.
 | `POST /api/approvals/:id/resolve` | Approve or deny |
 | `GET /api/audit` | Global audit log |
 | `GET /api/trust/findings` | Trust findings across agents |
-| `GET /api/vault/status[/:id]` | Markdown mirror sync state |
-| `POST /api/vault/rebuild[/:id]` | Rebuild markdown mirror |
+| `GET /api/mirror/status[/:id]` | Markdown mirror sync state with on-disk drift. `GET /api/vault/*` kept as legacy alias. |
+| `POST /api/mirror/rebuild[/:id]` | Rebuild markdown mirror. `POST /api/vault/*` kept as legacy alias. |
 | `GET /api/credentials` | Masked credential list |
 | `POST /api/credentials/:provider` | Save encrypted credential |
 | `DELETE /api/credentials/:provider` | Remove credential |

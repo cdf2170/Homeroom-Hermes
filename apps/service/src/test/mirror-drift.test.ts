@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createVaultService } from "../services/vault-service.js";
+import { createMirrorService } from "../services/mirror-service.js";
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
@@ -34,11 +34,11 @@ function makeProfile(overrides: Partial<AgentProfile> = {}): AgentProfile {
   } as AgentProfile;
 }
 
-describe("Vault drift detection", () => {
-  let vault: ReturnType<typeof createVaultService>;
+describe("Markdown mirror drift detection", () => {
+  let vault: ReturnType<typeof createMirrorService>;
 
   beforeEach(() => {
-    vault = createVaultService(TEST_DIR);
+    vault = createMirrorService(TEST_DIR);
   });
 
   afterEach(() => {

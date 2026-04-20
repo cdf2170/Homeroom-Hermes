@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AvatarPreview from '@/components/AvatarPreview';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAgents, updateAgent, removeAgent } from '@/store/agentStore';
-import { useAgent, useAgentRuns, useRunAgent, useUpdateAgent, useDeleteAgent, useAgentVaultStatus, useRebuildAgentVault } from '@/hooks/api/useAgents';
+import { useAgent, useAgentRuns, useRunAgent, useUpdateAgent, useDeleteAgent, useAgentMirrorStatus, useRebuildAgentMirror } from '@/hooks/api/useAgents';
 import {
   ArrowLeft, User, FileText, Shield, Clock,
   Play, Pause, Trash2, Cpu, Cloud, Zap,
@@ -1008,9 +1008,9 @@ const TrailSection = ({ agent, runs = [] }: { agent: Agent; runs?: MappedRun[] }
 // WORKSPACE — files & Obsidian
 // ═══════════════════════════════
 
-const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
-  const { data: status, isLoading } = useAgentVaultStatus(agentId);
-  const rebuild = useRebuildAgentVault(agentId);
+const MirrorStatusPanel = ({ agentId }: { agentId: string }) => {
+  const { data: status, isLoading } = useAgentMirrorStatus(agentId);
+  const rebuild = useRebuildAgentMirror(agentId);
 
   if (isLoading) {
     return (
@@ -1055,7 +1055,7 @@ const VaultStatusPanel = ({ agentId }: { agentId: string }) => {
       </div>
 
       <p className="text-xs font-mono text-muted-foreground bg-muted px-3 py-2 rounded-lg break-all">
-        {status.vaultRoot}/Agents/
+        {(status.mirrorRoot ?? status.vaultRoot)}/Agents/
       </p>
 
       <div className="text-[10px] text-muted-foreground space-y-1">
@@ -1158,10 +1158,10 @@ const WorkspaceSection = ({ agent }: { agent: Agent }) => {
             </div>
           </div>
 
-          {/* Vault status */}
-          <VaultStatusPanel agentId={agent.id} />
+          {/* Markdown mirror status */}
+          <MirrorStatusPanel agentId={agent.id} />
 
-          {/* Vault sync note */}
+          {/* Mirror sync note */}
           <div className="flex items-start gap-2 px-3 py-2.5 bg-muted/40 rounded-lg border border-border">
             <GitBranch className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
             <p className="text-[11px] text-muted-foreground">

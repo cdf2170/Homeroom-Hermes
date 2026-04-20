@@ -376,25 +376,35 @@ export const backendApi = {
     return mapSettings(raw);
   },
 
-  /** Get vault sync status for all agents. */
-  async getVaultStatus(): Promise<{ vaultRoot: string; agents: Record<string, { synced: boolean; syncedAt: string | null; hash: string | null }> }> {
-    return get('/api/vault/status');
+  /** Get markdown mirror sync status for all agents. */
+  async getMirrorStatus(): Promise<{ mirrorRoot: string; vaultRoot: string; agents: Record<string, { synced: boolean; syncedAt: string | null; hash: string | null }> }> {
+    return get('/api/mirror/status');
   },
 
-  /** Get vault sync status for a single agent, including drift detection. */
-  async getAgentVaultStatus(id: string): Promise<{ synced: boolean; syncedAt: string | null; hash: string | null; inSync: boolean; liveHash: string; vaultRoot: string }> {
-    return get(`/api/vault/status/${id}`);
+  /** Get markdown mirror sync status for a single agent, including drift detection. */
+  async getAgentMirrorStatus(id: string): Promise<{ synced: boolean; syncedAt: string | null; hash: string | null; inSync: boolean; liveHash: string; mirrorRoot: string; vaultRoot: string }> {
+    return get(`/api/mirror/status/${id}`);
   },
 
-  /** Rebuild vault docs for all agents. */
-  async rebuildVault(): Promise<{ rebuilt: number }> {
-    return post('/api/vault/rebuild');
+  /** Rebuild markdown mirror for all agents. */
+  async rebuildMirror(): Promise<{ rebuilt: number }> {
+    return post('/api/mirror/rebuild');
   },
 
-  /** Rebuild vault docs for a single agent. */
-  async rebuildAgentVault(id: string): Promise<{ rebuilt: boolean; agentId: string }> {
-    return post(`/api/vault/rebuild/${id}`);
+  /** Rebuild markdown mirror for a single agent. */
+  async rebuildAgentMirror(id: string): Promise<{ rebuilt: boolean; agentId: string }> {
+    return post(`/api/mirror/rebuild/${id}`);
   },
+
+  // ── Deprecated aliases (kept for components still referring to the old names) ──
+  /** @deprecated Use getMirrorStatus. */
+  getVaultStatus(this: { getMirrorStatus: () => Promise<{ mirrorRoot: string; vaultRoot: string; agents: Record<string, { synced: boolean; syncedAt: string | null; hash: string | null }> }> }) { return this.getMirrorStatus(); },
+  /** @deprecated Use getAgentMirrorStatus. */
+  getAgentVaultStatus(this: { getAgentMirrorStatus: (id: string) => Promise<{ synced: boolean; syncedAt: string | null; hash: string | null; inSync: boolean; liveHash: string; mirrorRoot: string; vaultRoot: string }> }, id: string) { return this.getAgentMirrorStatus(id); },
+  /** @deprecated Use rebuildMirror. */
+  rebuildVault(this: { rebuildMirror: () => Promise<{ rebuilt: number }> }) { return this.rebuildMirror(); },
+  /** @deprecated Use rebuildAgentMirror. */
+  rebuildAgentVault(this: { rebuildAgentMirror: (id: string) => Promise<{ rebuilt: boolean; agentId: string }> }, id: string) { return this.rebuildAgentMirror(id); },
 
   /** Fetch locally available Ollama models. */
   async listLocalModels(): Promise<{ models: { id: string; name: string; tag: string; sizeGB: number; family: string | null; parameterSize: string | null; quantization: string | null }[]; ollamaRunning: boolean }> {

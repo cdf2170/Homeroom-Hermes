@@ -183,28 +183,33 @@ export function useLocalModels() {
   });
 }
 
-/** Vault sync status for a single agent (includes drift detection). */
-export function useAgentVaultStatus(agentId: string) {
+/** Markdown mirror sync status for a single agent (includes drift detection). */
+export function useAgentMirrorStatus(agentId: string) {
   return useQuery({
-    queryKey: ['vault', 'agent', agentId],
-    queryFn: () => backendApi.getAgentVaultStatus(agentId),
+    queryKey: ['mirror', 'agent', agentId],
+    queryFn: () => backendApi.getAgentMirrorStatus(agentId),
     staleTime: 15_000,
     retry: 1,
     enabled: !!agentId,
   });
 }
 
-/** Trigger vault rebuild for a single agent. */
-export function useRebuildAgentVault(agentId: string) {
+/** Trigger markdown mirror rebuild for a single agent. */
+export function useRebuildAgentMirror(agentId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => backendApi.rebuildAgentVault(agentId),
+    mutationFn: () => backendApi.rebuildAgentMirror(agentId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['vault', 'agent', agentId] });
+      qc.invalidateQueries({ queryKey: ['mirror', 'agent', agentId] });
     },
     onError: (e: Error) => toast.error(`Mirror rebuild failed: ${e.message}`),
   });
 }
+
+/** @deprecated Use useAgentMirrorStatus. */
+export const useAgentVaultStatus = useAgentMirrorStatus;
+/** @deprecated Use useRebuildAgentMirror. */
+export const useRebuildAgentVault = useRebuildAgentMirror;
 
 /** Stored credentials — returns list of connected providers with masked keys. */
 export function useCredentials() {

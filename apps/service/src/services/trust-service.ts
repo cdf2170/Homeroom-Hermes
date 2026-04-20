@@ -4,7 +4,9 @@ import type { TrustFinding } from "@homeroom/domain";
 import type { TrustRepo } from "../repos/trust-repo.js";
 import { newId } from "../lib/ids.js";
 
-const SECRET_REGEX = /sk-[A-Za-z0-9]{20,}|api[_-]?key\s*[:=]\s*\S+/i;
+// Matches current real key shapes: sk-<hexblob>, sk-ant-api03-..., sk-proj-..., etc.
+// Also catches generic `api_key = ...` / `api-key: ...` patterns.
+const SECRET_REGEX = /sk-[A-Za-z0-9_-]{20,}|api[_-]?key\s*[:=]\s*\S+/i;
 
 /**
  * Approval scope strings the run-service actually enforces at dispatch.
@@ -100,17 +102,28 @@ export function computeAgentFindings(
     );
   }
 
-  // 4. Secret-like strings in memory/rules
-  const allContent = [...memoryContents, ...ruleContents];
-  const secretFound = allContent.some((c) => SECRET_REGEX.test(c));
+  // 4. Secret-like strings anywhere in the agent's free-text fields.
+  //    Paranoid: scan memory, rules, instructions, audience/environment/memory notes.
+  //    An API key in any of these will leak to the model on every run.
+  const allContent = [
+    ...memoryContents,
+    ...ruleContents,
+    profile.instructions ?? "",
+    profile.audienceNotes ?? "",
+    profile.environmentNotes ?? "",
+    profile.memoryNotes ?? "",
+  ];
+  const secretFound = allContent.some((c) => c && SECRET_REGEX.test(c));
   if (secretFound) {
     findings.push(
       makeFinding(
         {
           level: "critical",
           code: "SECRET_IN_CONTENT",
-          title: "Possible secret key found in memory or rules",
-          detail: "A string matching a known secret pattern was found in this agent's memory or rules.",
+          title: "Possible secret key found in agent content",
+          detail:
+            "A string matching a known secret pattern was found in this agent's memory, rules, " +
+            "instructions, or notes. Anything in these fields is sent to the model on every run.",
           recommendedAction:
             "Remove the secret and store it in Settings > Providers instead.",
         },
@@ -219,7 +232,53 @@ export function computeAgentFindings(
     );
   }
 
-  // 9. Agent's selected model points at a provider with no stored credential.
+  // 9a. Agent is marked backgroundEnabled but has no enabled schedule.
+  //     The agent will never actually run on its own even though the UI says
+  //     it can. Either dead config or the user forgot to set a schedule.
+  if (profile.backgroundEnabled && (!schedule || !schedule.enabled)) {
+    findings.push(
+      makeFinding(
+        {
+          level: "info",
+          code: "BACKGROUND_WITHOUT_SCHEDULE",
+          title: "Background enabled with no schedule",
+          detail:
+            "This agent is marked as able to run in the background, but it has no enabled schedule. " +
+            "It will not actually run on its own.",
+          recommendedAction:
+            "Add a schedule (e.g. hourly, daily) or turn off Background Enabled to match reality.",
+        },
+        "agent",
+        agentId,
+      ),
+    );
+  }
+
+  // 9b. Agent uses a cloud runtime but there are zero connected providers at all.
+  //     Even if no modelRef is set, this means runs will fail. This is stronger
+  //     than MODEL_PROVIDER_NO_CREDENTIAL (which checks a specific provider).
+  if (
+    profile.runtimeMode !== "local" &&
+    connectedProviders.size === 0
+  ) {
+    findings.push(
+      makeFinding(
+        {
+          level: "warning",
+          code: "NO_CONNECTED_PROVIDERS",
+          title: "Cloud agent with no providers connected",
+          detail:
+            "This agent is configured to use cloud execution, but no AI provider credentials " +
+            "are stored. Every run will fail at dispatch.",
+          recommendedAction: "Add at least one provider API key in Settings, or set runtime mode to Local.",
+        },
+        "agent",
+        agentId,
+      ),
+    );
+  }
+
+  // 10. Agent's selected model points at a provider with no stored credential.
   //    Without a credential the run will fail as soon as hermes is dispatched.
   if (profile.modelRef) {
     const providerId = profile.modelRef.split("/")[0]?.toLowerCase();

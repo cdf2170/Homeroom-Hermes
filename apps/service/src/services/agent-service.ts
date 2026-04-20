@@ -9,7 +9,7 @@ import type { AuditService } from "./audit-service.js";
 import type { RuntimeAdapter } from "@homeroom/adapter-core";
 import type { CreateAgentRequest, UpdateAgentRequest } from "@homeroom/contracts";
 import type { AgentProfile } from "@homeroom/domain";
-import type { VaultService } from "./vault-service.js";
+import type { MirrorService } from "./mirror-service.js";
 import { now } from "../lib/time.js";
 import { emit } from "../lib/event-bus.js";
 
@@ -54,17 +54,17 @@ export function createAgentService(
   trustService: TrustService,
   auditService: AuditService,
   adapter: RuntimeAdapter,
-  vaultService?: VaultService,
+  mirrorService?: MirrorService,
 ) {
   function syncVault(agentId: string) {
-    if (!vaultService) return;
+    if (!mirrorService) return;
     try {
       const profile = agentRepo.findById(agentId);
       const memoryItems = memoryRepo.findByAgentId(agentId);
       const ruleItems   = ruleRepo.findByAgentId(agentId);
       const perm        = permissionRepo.findByAgentId(agentId);
       const schedule    = scheduleRepo.findByAgentId(agentId);
-      vaultService.syncAgent(profile, memoryItems as any, ruleItems as any, perm as any, schedule as any);
+      mirrorService.syncAgent(profile, memoryItems as any, ruleItems as any, perm as any, schedule as any);
     } catch {
       // vault sync is best-effort — never block the main path
     }
@@ -202,7 +202,7 @@ export function createAgentService(
 
       const profileName = profile.name;
       agentRepo.delete(id);
-      vaultService?.deleteAgent(id, profileName);
+      mirrorService?.deleteAgent(id, profileName);
 
       auditService.append({
         actor: "user",

@@ -1,3 +1,18 @@
+/**
+ * settings-repo.ts
+ *
+ * App-wide settings. Single row, keyed by id="singleton".
+ *
+ * Historical columns:
+ *   - provider_meta: previously stored masked API key metadata. No longer
+ *     read or written; the settings service now derives provider connection
+ *     state from the encrypted credential store. The column stays in the DB
+ *     for backward compatibility; a later migration can drop it.
+ *   - openclaw_workspace_path: legacy column name; exposed in TypeScript as
+ *     `defaultWorkspacePath`. The physical column name is kept so existing
+ *     DB rows keep working without a migration.
+ */
+
 import type { Db } from "../db/client.js";
 import { settings } from "../db/schema.js";
 import { now } from "../lib/time.js";
@@ -8,8 +23,8 @@ export interface SettingsRow {
   defaultRuntimeMode: string;
   defaultSmartLevel: string;
   defaultSafetyLevel: string;
-  openclawWorkspacePath: string;
-  providerMeta: Record<string, { maskedKey: string | null; lastVerifiedAt: string | null }>;
+  /** Exposed name; stored in column `openclaw_workspace_path` for back-compat. */
+  defaultWorkspacePath: string;
   updatedAt: string;
 }
 
@@ -18,8 +33,7 @@ function rowToSettings(row: Row): SettingsRow {
     defaultRuntimeMode: row.defaultRuntimeMode,
     defaultSmartLevel: row.defaultSmartLevel,
     defaultSafetyLevel: row.defaultSafetyLevel,
-    openclawWorkspacePath: row.openclawWorkspacePath,
-    providerMeta: JSON.parse(row.providerMeta),
+    defaultWorkspacePath: row.openclawWorkspacePath,
     updatedAt: row.updatedAt,
   };
 }
@@ -37,14 +51,12 @@ export function createSettingsRepo(db: Db) {
 
     update(patch: Partial<Omit<SettingsRow, "updatedAt">>): SettingsRow {
       const existing = this.get();
-      const providerMeta = patch.providerMeta ?? existing.providerMeta;
       db.update(settings)
         .set({
           defaultRuntimeMode: patch.defaultRuntimeMode ?? existing.defaultRuntimeMode,
           defaultSmartLevel: patch.defaultSmartLevel ?? existing.defaultSmartLevel,
           defaultSafetyLevel: patch.defaultSafetyLevel ?? existing.defaultSafetyLevel,
-          openclawWorkspacePath: patch.openclawWorkspacePath ?? existing.openclawWorkspacePath,
-          providerMeta: JSON.stringify(providerMeta),
+          openclawWorkspacePath: patch.defaultWorkspacePath ?? existing.defaultWorkspacePath,
           updatedAt: now(),
         })
         .run();

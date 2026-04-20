@@ -36,7 +36,7 @@ import { createScheduleService } from "./services/schedule-service.js";
 import { createRunService } from "./services/run-service.js";
 import { createAgentService } from "./services/agent-service.js";
 import { createFrontdeskService } from "./services/frontdesk-service.js";
-import { createVaultService } from "./services/vault-service.js";
+import { createMirrorService } from "./services/mirror-service.js";
 import { createSchedulerService } from "./services/scheduler-service.js";
 
 // Routes
@@ -48,12 +48,12 @@ import { buildAuditRoutes } from "./routes/audit.js";
 import { buildFrontdeskRoutes } from "./routes/frontdesk.js";
 import { buildEventsRoutes } from "./routes/events.js";
 import { buildCredentialsRoutes } from "./routes/credentials.js";
-import { buildVaultRoutes } from "./routes/vault.js";
+import { buildMirrorRoutes } from "./routes/mirror.js";
 
 import { resolve } from "path";
 import { homedir } from "os";
 
-export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, vaultRoot?: string) {
+export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, mirrorRoot?: string) {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -151,8 +151,8 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   );
   const schedulerService = createSchedulerService(scheduleRepo, agentRepo, runService);
   const scheduleService = createScheduleService(scheduleRepo, agentRepo, schedulerService);
-  const resolvedVaultRoot = vaultRoot ?? resolve(homedir(), ".homeroom", "vault");
-  const vaultService = createVaultService(resolvedVaultRoot);
+  const resolvedMirrorRoot = mirrorRoot ?? resolve(homedir(), ".homeroom", "vault");
+  const mirrorService = createMirrorService(resolvedMirrorRoot);
   const agentService = createAgentService(
     agentRepo,
     memoryRepo,
@@ -163,7 +163,7 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
     trustService,
     auditService,
     adapter,
-    vaultService,
+    mirrorService,
   );
   const frontdeskService = createFrontdeskService(agentRepo, trustService, runtimeService);
 
@@ -185,7 +185,7 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   await app.register(buildFrontdeskRoutes(frontdeskService));
   await app.register(buildEventsRoutes(streamEventRepo));
   await app.register(buildCredentialsRoutes());
-  await app.register(buildVaultRoutes(vaultService, agentService, memoryRepo, ruleRepo, permissionRepo, scheduleRepo, runRepo));
+  await app.register(buildMirrorRoutes(mirrorService, agentService, memoryRepo, ruleRepo, permissionRepo, scheduleRepo, runRepo));
   await app.register(buildApprovalsRoutes(approvalService));
   await app.register(buildSnapshotRoute(agentService, runService, approvalService, auditService, runStepRepo, trustService));
 
@@ -224,5 +224,13 @@ export async function buildApp(db: Db, adapter: RuntimeAdapter, config: Config, 
   // Import any pre-configured agents from the runtime adapter on first boot
   await agentService.importFromAdapter();
 
-  return { app, agentService, runtimeService, vaultService, schedulerService };
+  return {
+    app,
+    agentService,
+    runtimeService,
+    mirrorService,
+    /** @deprecated Use mirrorService. */
+    vaultService: mirrorService,
+    schedulerService,
+  };
 }

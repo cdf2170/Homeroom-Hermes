@@ -19,8 +19,12 @@ export interface Config {
   /** Cloud model. Defaults to gpt-4o */
   cloudModel: string;
   logLevel: string;
-  /** Path to the local Obsidian-compatible vault. Defaults to ~/.homeroom/vault */
-  vaultPath: string;
+  /**
+   * Path to the local markdown mirror of agent config. Defaults to
+   * ~/.homeroom/vault (the folder name is kept for backward compatibility;
+   * the env var MIRROR_PATH is preferred, VAULT_PATH still works).
+   */
+  mirrorPath: string;
   /** Path to the built frontend (vite build output). Defaults to <repo>/dist */
   staticRoot: string;
 }
@@ -54,7 +58,7 @@ export function loadConfig(): Config {
     cloudProvider:        process.env["CLOUD_PROVIDER"] ?? "openai",
     cloudModel:           process.env["CLOUD_MODEL"] ?? "gpt-4o",
     logLevel:             process.env["LOG_LEVEL"] ?? "info",
-    vaultPath:            process.env["VAULT_PATH"] ?? resolve(homedir(), ".homeroom", "vault"),
+    mirrorPath:           process.env["MIRROR_PATH"] ?? process.env["VAULT_PATH"] ?? resolve(homedir(), ".homeroom", "vault"),
     staticRoot:           process.env["STATIC_ROOT"] ?? resolve(process.cwd(), "..", "..", "dist"),
   };
 }

@@ -58,7 +58,9 @@ export interface EventMap {
   // Schedule
   "schedule.fired":    { agentId: string; scheduleId: string };
 
-  // Vault
+  // Markdown mirror (formerly "vault")
+  "mirror.synced":     { agentId: string };
+  /** @deprecated Emit mirror.synced instead. */
   "vault.synced":      { agentId: string };
 }
 
